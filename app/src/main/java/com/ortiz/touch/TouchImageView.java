@@ -35,13 +35,14 @@ import android.view.ScaleGestureDetector;
 import android.view.ScaleGestureDetector.SimpleOnScaleGestureListener;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.widget.ImageView;
 import android.widget.OverScroller;
 import android.widget.Scroller;
 
+import androidx.appcompat.widget.AppCompatImageView;
+
 import freed.utils.Log;
 
-public class TouchImageView extends ImageView {
+public class TouchImageView extends AppCompatImageView {
 
     private static final String DEBUG = "DEBUG";
 
@@ -415,8 +416,8 @@ public class TouchImageView extends ImageView {
 
     /**
      * Set zoom parameters equal to another TouchImageView. Including scale, position,
-     * and ScaleType.
-     * @param TouchImageView
+     * and ScaleType. TouchImageView
+     * @param
      */
     private void setZoom(TouchImageView img) {
         PointF center = img.getScrollPosition();

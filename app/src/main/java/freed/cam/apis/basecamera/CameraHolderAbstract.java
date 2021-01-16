@@ -20,11 +20,6 @@
 package freed.cam.apis.basecamera;
 
 import android.location.Location;
-import android.os.Handler;
-import android.os.Looper;
-import android.view.SurfaceHolder;
-
-import freed.utils.AppSettingsManager;
 
 /**
  * Created by troop on 12.12.2014.
@@ -32,15 +27,7 @@ import freed.utils.AppSettingsManager;
  */
 public abstract class CameraHolderAbstract implements CameraHolderInterface
 {
-    protected boolean isRdy;
-    //handler wich runs in mainthread
-    protected Handler UIHandler;
-    //holds the appsettings
-    protected AppSettingsManager appSettingsManager;
-
     protected CameraWrapperInterface cameraUiWrapper;
-
-    //protected ModuleHandlerAbstract moduleHandler;
 
     /**
      *
@@ -49,19 +36,6 @@ public abstract class CameraHolderAbstract implements CameraHolderInterface
     protected CameraHolderAbstract(CameraWrapperInterface cameraUiWrapper)
     {
         this.cameraUiWrapper = cameraUiWrapper;
-        this.appSettingsManager = cameraUiWrapper.getAppSettingsManager();
-        //this.moduleHandler = cameraUiWrapper.getModuleHandler();
-        UIHandler = new Handler(Looper.getMainLooper());
-    }
-
-    /**
-     * Send message to UI
-     * @param msg to send
-     */
-    public void SendUIMessage(String msg)
-    {
-        if (cameraUiWrapper != null)
-            cameraUiWrapper.onCameraError(msg);
     }
 
     @Override
@@ -69,34 +43,6 @@ public abstract class CameraHolderAbstract implements CameraHolderInterface
 
     @Override
     public abstract void CloseCamera();
-
-    /**
-     *
-     * @return the count of avail cameras
-     */
-    @Override
-    public int CameraCout() {
-        return 0;
-    }
-
-    @Override
-    public boolean IsRdy() {
-        return isRdy;
-    }
-
-    @Override
-    public boolean SetSurface(SurfaceHolder texture) {
-        return false;
-    }
-
-    @Override
-    public abstract void StartPreview();
-
-
-    @Override
-    public abstract void StopPreview();
-
-
 
     public abstract void StartFocus(FocusEvents autoFocusCallback);
     public abstract void CancelFocus();

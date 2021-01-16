@@ -19,29 +19,30 @@
 
 package freed.cam.apis.sonyremote;
 
-import android.view.MotionEvent;
+import java.util.Set;
 
 import freed.cam.apis.basecamera.AbstractFocusHandler;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.FocusEvents;
+import freed.cam.apis.sonyremote.parameters.modes.I_SonyApi;
 import freed.utils.Log;
 
 /**
  * Created by troop on 31.01.2015.
  */
-public class FocusHandler extends AbstractFocusHandler implements FocusEvents
+public class FocusHandler extends AbstractFocusHandler implements FocusEvents, I_SonyApi
 {
     private final String TAG = FocusHandler.class.getSimpleName();
     private boolean isFocusing;
 
+    @Override
+    protected void startTouchFocus(FocusCoordinates obj) {
+
+    }
+
     public FocusHandler(CameraWrapperInterface cameraUiWrapper)
     {
         super(cameraUiWrapper);
-    }
-
-    @Override
-    public void StartFocus() {
-
     }
 
     @Override
@@ -82,10 +83,9 @@ public class FocusHandler extends AbstractFocusHandler implements FocusEvents
     }
 
     @Override
-    public void SetMotionEvent(MotionEvent event) {
-        this.cameraUiWrapper.getSurfaceView().onTouchEvent(event);
+    public boolean isTouchSupported() {
+        return false;
     }
-
 
     @Override
     public void onFocusEvent(boolean success)
@@ -105,6 +105,15 @@ public class FocusHandler extends AbstractFocusHandler implements FocusEvents
         }
     }
 
+    @Override
+    public void SonyApiChanged(Set<String> mAvailableCameraApiSet) {
+        if (focusEvent == null)
+            return;
+        if (mAvailableCameraApiSet.contains("setTouchAFPosition"))
+            focusEvent.TouchToFocusSupported(true);
+        else
+            focusEvent.TouchToFocusSupported(false);
+    }
 }
 
 

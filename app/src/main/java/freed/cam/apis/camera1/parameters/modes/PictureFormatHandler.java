@@ -20,13 +20,16 @@
 package freed.cam.apis.camera1.parameters.modes;
 
 import android.hardware.Camera.Parameters;
+import android.text.TextUtils;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.camera1.CameraHolder;
-import freed.cam.apis.camera1.CameraHolder.Frameworks;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.Frameworks;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -35,7 +38,7 @@ import freed.utils.Log;
 public class PictureFormatHandler extends BaseModeParameter
 {
     private final String TAG = PictureFormatHandler.class.getSimpleName();
-    private String captureMode = cameraUiWrapper.getResString(R.string.jpeg_);
+    private String captureMode = FreedApplication.getStringFromRessources(R.string.jpeg_);
     private String rawFormat;
 
     private String[] rawFormats;
@@ -47,28 +50,37 @@ public class PictureFormatHandler extends BaseModeParameter
      */
     public PictureFormatHandler(Parameters parameters, CameraWrapperInterface cameraUiWrapper, ParametersHandler parametersHandler)
     {
-        super(parameters, cameraUiWrapper);
-        ParametersHandler parametersHandler1 = parametersHandler;
-        isSupported = cameraUiWrapper.getAppSettingsManager().pictureFormat.isSupported();
-        boolean rawpicformatsupported = cameraUiWrapper.getAppSettingsManager().rawPictureFormat.isSupported();
-        boolean dngprofilessupported = cameraUiWrapper.getAppSettingsManager().getDngProfilesMap() != null && cameraUiWrapper.getAppSettingsManager().getDngProfilesMap().size() > 0;
+        super(parameters, cameraUiWrapper,SettingKeys.PictureFormat);
+        SettingsManager.get(SettingKeys.PictureFormat).isSupported();
+        setViewState(ViewState.Visible);
+        boolean rawpicformatsupported = SettingsManager.get(SettingKeys.RAW_PICTURE_FORMAT_SETTING).isSupported();
+        boolean dngprofilessupported = false;
+        if(SettingsManager.getInstance().getDngProfilesMap() != null && SettingsManager.getInstance().getDngProfilesMap().size() > 0)
+            dngprofilessupported = true;
         boolean rawSupported = rawpicformatsupported || dngprofilessupported;
         if (rawSupported) {
-            rawFormat = cameraUiWrapper.getAppSettingsManager().rawPictureFormat.get();
-            rawFormats = cameraUiWrapper.getAppSettingsManager().rawPictureFormat.getValues();
+            rawFormat = SettingsManager.get(SettingKeys.RAW_PICTURE_FORMAT_SETTING).get();
+            rawFormats = SettingsManager.get(SettingKeys.RAW_PICTURE_FORMAT_SETTING).getValues();
             BayerFormat bayerFormats = new BayerFormat(parameters, cameraUiWrapper, "");
-            parametersHandler.bayerformat = bayerFormats;
-            boolean dngsupport = cameraUiWrapper.getAppSettingsManager().getDngProfilesMap() != null && cameraUiWrapper.getAppSettingsManager().getDngProfilesMap().size() > 0;
-            if (!contains(cameraUiWrapper.getAppSettingsManager().rawPictureFormat.getValues(), cameraUiWrapper.getAppSettingsManager().getResString(R.string.dng_))
-                    && dngsupport)
-            cameraUiWrapper.getAppSettingsManager().pictureFormat.setValues(new String[]
+            if (bayerFormats.getStringValues() != null && bayerFormats.getStringValues().length > 0)
+                bayerFormats.setViewState(ViewState.Visible);
+            if (TextUtils.isEmpty(rawFormat) && rawFormats != null && rawFormats.length >0)
+                rawFormat = rawFormats[0];
+            parametersHandler.add(SettingKeys.BAYERFORMAT, bayerFormats);
+            if ((rawFormats != null && rawFormats.length  > 0) || SettingsManager.getInstance().getFrameWork() == freed.settings.Frameworks.MTK)
+                SettingsManager.get(SettingKeys.RAW_PICTURE_FORMAT_SETTING).setIsSupported(true);
+            else
+                SettingsManager.get(SettingKeys.RAW_PICTURE_FORMAT_SETTING).setIsSupported(false);
+            if (!contains(SettingsManager.get(SettingKeys.RAW_PICTURE_FORMAT_SETTING).getValues(), FreedApplication.getStringFromRessources(R.string.dng_))
+                    && dngprofilessupported)
+            SettingsManager.get(SettingKeys.PictureFormat).setValues(new String[]
                         {
-                                cameraUiWrapper.getAppSettingsManager().getResString(R.string.jpeg_),
-                                cameraUiWrapper.getAppSettingsManager().getResString(R.string.dng_),
-                                cameraUiWrapper.getAppSettingsManager().getResString(R.string.bayer_)
+                                FreedApplication.getStringFromRessources(R.string.jpeg_),
+                                FreedApplication.getStringFromRessources(R.string.dng_),
+                                FreedApplication.getStringFromRessources(R.string.bayer_)
                         });
         }
-        Log.d(TAG, "rawsupported:" + rawSupported + "isSupported:"+ isSupported);
+        Log.d(TAG, "rawsupported:" + rawSupported + "isSupported:"+ (getViewState() == ViewState.Visible));
     }
 
     private boolean contains(String[] arr, String tofind)
@@ -85,20 +97,19 @@ public class PictureFormatHandler extends BaseModeParameter
     public void SetValue(String valueToSet, boolean setToCam)
     {
         Log.d(TAG, "SetValue:" + valueToSet);
+        SettingsManager.get(SettingKeys.PictureFormat).set(valueToSet);
         captureMode = valueToSet;
-        if (((CameraHolder) cameraUiWrapper.getCameraHolder()).DeviceFrameWork != Frameworks.MTK)
+        if (SettingsManager.getInstance().getFrameWork() != Frameworks.MTK)
         {
-            if (valueToSet.equals(cameraUiWrapper.getResString(R.string.jpeg_)))
+            if (valueToSet.equals(FreedApplication.getStringFromRessources(R.string.jpeg_)))
                 setString(valueToSet,setToCam);
-            else if(valueToSet.equals(cameraUiWrapper.getResString(R.string.bayer_)))
+            else if(valueToSet.equals(FreedApplication.getStringFromRessources(R.string.bayer_)))
             {
                 setString(rawFormat,setToCam);
-                cameraUiWrapper.getParameterHandler().SetDngActive(false);
             }
-            else if(valueToSet.equals(cameraUiWrapper.getResString(R.string.dng_)))
+            else if(valueToSet.equals(FreedApplication.getStringFromRessources(R.string.dng_)))
             {
                 setString(rawFormat,setToCam);
-                cameraUiWrapper.getParameterHandler().SetDngActive(true);
             }
         }
         fireStringValueChanged(valueToSet);
@@ -107,16 +118,11 @@ public class PictureFormatHandler extends BaseModeParameter
     private void setString(String val, boolean setTocam)
     {
         Log.d(TAG, "setApiString:" +val);
-        parameters.set(cameraUiWrapper.getResString(R.string.picture_format), val);
-        ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
+        parameters.set(FreedApplication.getStringFromRessources(R.string.picture_format), val);
+        if (setTocam)
+            ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
     }
 
-    @Override
-    public boolean IsSupported()
-    {
-        Log.d(TAG,"IsSupported:"+ isSupported);
-        return isSupported;
-    }
 
     @Override
     public String GetStringValue() {
@@ -126,19 +132,19 @@ public class PictureFormatHandler extends BaseModeParameter
     @Override
     public String[] getStringValues()
     {
-        return cameraUiWrapper.getAppSettingsManager().pictureFormat.getValues();
+        return SettingsManager.get(SettingKeys.PictureFormat).getValues();
     }
 
     @Override
     public void onModuleChanged(String module)
     {
-        if (module.equals(cameraUiWrapper.getResString(R.string.module_video)))
+        if (module.equals(FreedApplication.getStringFromRessources(R.string.module_video)))
         {
-            onIsSupportedChanged(false);
+            setViewState(ViewState.Hidden);
         }
         else
         {
-            onIsSupportedChanged(true);
+            setViewState(ViewState.Visible);
         }
     }
 
@@ -151,7 +157,7 @@ public class PictureFormatHandler extends BaseModeParameter
          * @param values
          */
         public BayerFormat(Parameters parameters, CameraWrapperInterface cameraHolder, String values) {
-            super(parameters, cameraHolder);
+            super(parameters, cameraHolder,SettingKeys.BAYERFORMAT);
         }
 
         @Override
@@ -166,20 +172,18 @@ public class PictureFormatHandler extends BaseModeParameter
         }
 
         @Override
-        public boolean IsSupported() {
-            return rawFormats != null && rawFormats.length>0;
-        }
-
-        @Override
-        public boolean IsVisible() {
-            return rawFormats != null && rawFormats.length>0;
+        public ViewState getViewState() {
+            if ( rawFormats != null && rawFormats.length>0)
+                return ViewState.Visible;
+            else
+                return ViewState.Hidden;
         }
 
         @Override
         public void SetValue(String valueToSet, boolean setToCam)
         {
             rawFormat = valueToSet;
-            if (captureMode.equals(cameraUiWrapper.getResString(R.string.bayer_))|| captureMode.equals(cameraUiWrapper.getResString(R.string.dng_))) {
+            if (captureMode.equals(FreedApplication.getStringFromRessources(R.string.bayer_))|| captureMode.equals(FreedApplication.getStringFromRessources(R.string.dng_))) {
                 PictureFormatHandler.this.SetValue(captureMode, true);
             }
         }

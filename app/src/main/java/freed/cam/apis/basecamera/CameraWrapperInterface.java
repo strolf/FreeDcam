@@ -19,64 +19,25 @@
 
 package freed.cam.apis.basecamera;
 
-import android.content.Context;
-import android.view.SurfaceView;
-
-import freed.ActivityInterface;
-import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract;
-import freed.cam.apis.basecamera.parameters.AbstractParameterHandler;
-import freed.utils.AppSettingsManager;
-import freed.utils.RenderScriptHandler;
-
 /**
  * Created by troop on 09.12.2014.
  */
-public interface CameraWrapperInterface extends CameraStateEvents
+public interface CameraWrapperInterface extends CameraObjects
 {
     /**
      * Start the Camera
      */
-    void startCamera();
+    void startCameraAsync();
 
     /**
      * Stop the Camera
      */
-    void stopCamera();
-    void restartCamera();
+    void stopCameraAsync();
+    void restartCameraAsync();
 
-    void startPreview();
-    void stopPreview();
-    /**
-     * Starts a new work with the current active module
-     * the module must handle the workstate on its own if it gets hit twice while work is already in progress
-     */
-    void startWork();
-
-    /**
-     * Get the current active CameraHolderSony
-     * @return
-     */
-    CameraHolderInterface getCameraHolder();
-
-    /**
-     * get the active parameterhandler
-     * @return
-     */
-    AbstractParameterHandler getParameterHandler();
-    /**
-     * get the appsettings
-     */
-    AppSettingsManager getAppSettingsManager();
-    ModuleHandlerAbstract getModuleHandler();
-    SurfaceView getSurfaceView();
-    AbstractFocusHandler getFocusHandler();
-
-    /**
-     * set the listner that get notifyed when camera state has changed
-     * @param cameraChangedListner to notify
-     */
-    void setCameraStateChangedListner(CameraStateEvents cameraChangedListner);
-
+    void startPreviewAsync();
+    void stopPreviewAsync();
+    void restartPreviewAsync();
 
     /**
      * get the left margine between display and preview
@@ -106,14 +67,5 @@ public interface CameraWrapperInterface extends CameraStateEvents
 
     boolean isAeMeteringSupported();
 
-    Context getContext();
-
-    FocuspeakProcessor getFocusPeakProcessor();
-
-    RenderScriptHandler getRenderScriptHandler();
-
-    ActivityInterface getActivityInterface();
-
-    String getResString(int id);
 
 }

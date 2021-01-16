@@ -1,62 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:orientation="vertical" android:layout_width="fill_parent"
+    android:id="@+id/MainLayout"
+    android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:background="#1b1b1b"
     android:keepScreenOn="true"
     android:longClickable="false"
-    android:touchscreenBlocksFocus="true"
-    android:id="@+id/MainLayout">
+    android:orientation="vertical">
 
 
     <LinearLayout
-        android:orientation="vertical"
+        android:id="@+id/cameraFragmentHolder"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/cameraFragmentHolder"></LinearLayout>
-    <LinearLayout
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:id="@+id/counter"
-        android:gravity="center_horizontal">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textAppearance="?android:attr/textAppearanceSmall"
-            android:text="0:00:00:000"
-            android:id="@+id/textView_RecCounter"
-            android:layout_alignParentLeft="false"
-            android:layout_alignParentRight="false"
-            android:layout_alignParentTop="false"
-            android:rotation="0"
-            android:textSize="20dp"
-            android:paddingLeft="15dp"
-            android:paddingRight="10dp"
-            android:paddingTop="3.5dp"
-            android:textColor="#ffffff"
-            android:autoText="false"
-            android:background="#086c6c6c" />
-
-    </LinearLayout>
-
+        android:orientation="vertical"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 
     <freed.cam.ui.themesample.PagingView
+        android:id="@+id/viewPager_fragmentHolder"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:id="@+id/viewPager_fragmentHolder" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <LinearLayout
-        android:orientation="horizontal"
+        android:id="@+id/nightoverlay"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:id="@+id/nightoverlay"
-
-        android:layout_alignParentLeft="true"
         android:background="#7fff0000"
-        android:visibility="gone">
-    </LinearLayout>
-</RelativeLayout>
+
+        android:orientation="horizontal"
+        android:visibility="gone"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -30,7 +30,8 @@ import android.widget.TextView;
 import com.troop.freedcam.R;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 09.09.2016.
@@ -61,12 +62,12 @@ public class AfBracketSettingsView extends LinearLayout
     {
         LayoutInflater inflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         inflater.inflate(R.layout.cameraui_afbracketsettings, this);
-        Button button_setMax = (Button) findViewById(R.id.button_afbracket_fragment_setMax);
+        Button button_setMax = findViewById(R.id.button_afbracket_fragment_setMax);
         button_setMax.setOnClickListener(onSetMaxClick);
-        Button button_setMin = (Button) findViewById(R.id.button_afbracket_fragment_setMin);
+        Button button_setMin = findViewById(R.id.button_afbracket_fragment_setMin);
         button_setMin.setOnClickListener(onSetMinClick);
-        textView_max = (TextView)findViewById(R.id.textView_afBracketFragment_maxvalue);
-        textView_min = (TextView)findViewById(R.id.textView_afBracketFragment_minvalue);
+        textView_max = findViewById(R.id.textView_afBracketFragment_maxvalue);
+        textView_min = findViewById(R.id.textView_afBracketFragment_minvalue);
     }
 
     public void SetCameraWrapper(CameraWrapperInterface cameraWrapperInterface)
@@ -77,18 +78,18 @@ public class AfBracketSettingsView extends LinearLayout
     View.OnClickListener onSetMaxClick = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            int max = cameraWrapperInterface.getParameterHandler().ManualFocus.GetValue();
-            cameraWrapperInterface.getAppSettingsManager().setApiString(AppSettingsManager.SETTING_AFBRACKETMAX, max+"");
-            textView_max.setText(max+"");
+            int max = cameraWrapperInterface.getParameterHandler().get(SettingKeys.M_Focus).GetValue();
+            SettingsManager.get(SettingKeys.AF_BRACKET_MAX).set(String.valueOf(max));
+            textView_max.setText(cameraWrapperInterface.getParameterHandler().get(SettingKeys.M_Focus).GetStringValue());
         }
     };
 
     View.OnClickListener onSetMinClick = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            int min = cameraWrapperInterface.getParameterHandler().ManualFocus.GetValue();
-            cameraWrapperInterface.getAppSettingsManager().setApiString(AppSettingsManager.SETTING_AFBRACKETMIN, min+"");
-            textView_min.setText(min+"");
+            int min = cameraWrapperInterface.getParameterHandler().get(SettingKeys.M_Focus).GetValue();
+            SettingsManager.get(SettingKeys.AF_BRACKET_MIN).set(String.valueOf(min));
+            textView_min.setText(cameraWrapperInterface.getParameterHandler().get(SettingKeys.M_Focus).GetStringValue());
         }
     };
 }

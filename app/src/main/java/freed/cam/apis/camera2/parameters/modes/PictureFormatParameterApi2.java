@@ -24,41 +24,35 @@ import android.hardware.camera2.CaptureRequest;
 import android.os.Build.VERSION_CODES;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 12.12.2014.
  */
 public class PictureFormatParameterApi2 extends BaseModeApi2
 {
-    private String format;
 
-    public PictureFormatParameterApi2(CameraWrapperInterface cameraUiWrapper, AppSettingsManager.SettingMode settingMode, CaptureRequest.Key<Integer> parameterKey)
+    public PictureFormatParameterApi2(CameraWrapperInterface cameraUiWrapper, SettingKeys.Key key, CaptureRequest.Key<Integer> parameterKey)
     {
-        super(cameraUiWrapper,settingMode,parameterKey);
-        format = settingMode.get();
-    }
-
-    @Override
-    public boolean IsSupported() {
-        return cameraUiWrapper.getAppSettingsManager().pictureFormat.isSupported();
+        super(cameraUiWrapper,key,parameterKey);
+        if (SettingsManager.get(SettingKeys.PictureFormat).isSupported()) {
+            setViewState(ViewState.Visible);
+            currentString = SettingsManager.get(SettingKeys.PictureFormat).get();
+        }
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCamera)
     {
         fireStringValueChanged(valueToSet);
-        format = valueToSet;
+        super.setValue(valueToSet,setToCamera);
         if (setToCamera)
         {
-            cameraUiWrapper.stopPreview();
-            cameraUiWrapper.startPreview();
+            cameraUiWrapper.restartPreviewAsync();
+            /*cameraUiWrapper.stopPreviewAsync();
+            cameraUiWrapper.startPreviewAsync();*/
         }
-    }
-
-    @Override
-    public String GetStringValue() {
-        return format;
     }
 
     @TargetApi(VERSION_CODES.LOLLIPOP)
@@ -66,5 +60,10 @@ public class PictureFormatParameterApi2 extends BaseModeApi2
     public String[] getStringValues()
     {
         return parameterValues.keySet().toArray(new String[parameterValues.size()]);
+    }
+
+    @Override
+    public String GetStringValue() {
+        return SettingsManager.get(SettingKeys.PictureFormat).get();
     }
 }

@@ -23,8 +23,11 @@ import android.text.TextUtils;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 08.01.2016.
@@ -37,21 +40,23 @@ public class IntervalDurationParameter extends AbstractParameter
 
     public IntervalDurationParameter(CameraWrapperInterface cameraUiWrapper)
     {
+        super( SettingKeys.INTERVAL_DURATION);
         this.cameraUiWrapper = cameraUiWrapper;
-        if (TextUtils.isEmpty(cameraUiWrapper.getAppSettingsManager().intervalDuration.get()))
-            cameraUiWrapper.getAppSettingsManager().intervalDuration.set(current);
+        if (TextUtils.isEmpty(SettingsManager.get(SettingKeys.INTERVAL_DURATION).get()))
+            SettingsManager.get(SettingKeys.INTERVAL_DURATION).set(current);
         else
-            current = cameraUiWrapper.getAppSettingsManager().intervalDuration.get();
+            current = SettingsManager.get(SettingKeys.INTERVAL_DURATION).get();
     }
 
     @Override
-    public boolean IsSupported() {
-        return true;
+    public ViewState getViewState() {
+        return ViewState.Visible;
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCamera) {
         current = valueToSet;
+        SettingsManager.get(SettingKeys.INTERVAL_DURATION).set(current);
     }
 
     @Override
@@ -61,6 +66,6 @@ public class IntervalDurationParameter extends AbstractParameter
 
     @Override
     public String[] getStringValues() {
-        return cameraUiWrapper.getContext().getResources().getStringArray(R.array.interval_duration);
+        return FreedApplication.getStringArrayFromRessource(R.array.interval_duration);
     }
 }

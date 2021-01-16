@@ -20,13 +20,14 @@
 package freed.cam.ui.themesample.settings;
 
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+
+import androidx.fragment.app.Fragment;
 
 import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
@@ -50,7 +51,7 @@ public class ValuesMenuFragment extends Fragment implements ListView.OnItemClick
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        listView = (ListView)view.findViewById(id.values_fragment_listview);
+        listView = view.findViewById(id.values_fragment_listview);
 
         if(item == null)
             return;

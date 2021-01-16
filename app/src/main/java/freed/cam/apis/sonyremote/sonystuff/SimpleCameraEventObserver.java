@@ -6,6 +6,7 @@ package freed.cam.apis.sonyremote.sonystuff;
 
 import android.content.Context;
 import android.os.Handler;
+import android.text.TextUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -30,7 +31,7 @@ public class SimpleCameraEventObserver {
 
     private void sendLog(String msg)
     {
-        boolean LOGGING = true;
+        boolean LOGGING = false;
         if (LOGGING)
             Log.d(SimpleCameraEventObserver.TAG, msg);
     }
@@ -222,44 +223,50 @@ public class SimpleCameraEventObserver {
         }
 
         mWhileEventMonitoring = true;
-        FreeDPool.Execute(new Runnable() {
-            @Override
-            public void run() {
-                SimpleCameraEventObserver.this.sendLog("start() exec.");
-                // Call getEvent API continuously.
-                boolean firstCall = true;
-                while (mWhileEventMonitoring)
-                {
+        FreeDPool.Execute(() -> {
+            SimpleCameraEventObserver.this.sendLog("start() exec.");
+            // Call getEvent API continuously.
+            boolean firstCall = true;
+            JSONObject replyJson;
+            while (mWhileEventMonitoring)
+            {
 
-                    // At first, call as non-Long Polling.
-                    boolean longPolling = !firstCall;
+                // At first, call as non-Long Polling.
+                boolean longPolling = !firstCall;
 
+                try {
+                    // Call getEvent API.
+                    replyJson = SimpleCameraEventObserver.this.mRemoteApi.getEvent(longPolling, SimpleCameraEventObserver.this.version);
+                    if (firstCall)
+                        Log.d(TAG,replyJson.toString());
+
+                    // Check error code at first.
+                    int errorCode = JsonUtils.findErrorCode(replyJson);
+                    SimpleCameraEventObserver.this.sendLog("getEvent errorCode: " + errorCode);
+
+                    SimpleCameraEventObserver.this.processEvents(replyJson);
+
+                } catch (IOException e) {
                     try {
-                        // Call getEvent API.
-                        JSONObject replyJson;
-
-                        replyJson = SimpleCameraEventObserver.this.mRemoteApi.getEvent(longPolling, SimpleCameraEventObserver.this.version);
-
-                        // Check error code at first.
-                        int errorCode = JsonUtils.findErrorCode(replyJson);
-                        SimpleCameraEventObserver.this.sendLog("getEvent errorCode: " + errorCode);
-
+                        replyJson = SimpleCameraEventObserver.this.mRemoteApi.getEvent(false, SimpleCameraEventObserver.this.version);
                         SimpleCameraEventObserver.this.processEvents(replyJson);
-
-                    } catch (IOException e) {
+                    }
+                    catch (IOException ex) {
                         // Occurs when the server is not available now.
                         SimpleCameraEventObserver.this.sendLog("getEvent timeout by client trigger.");
                         SimpleCameraEventObserver.this.fireTimeoutListener();
-
-                    } catch (JSONException e) {
-                        SimpleCameraEventObserver.this.sendLog("getEvent: JSON format error. " + e.getMessage());
+                    } catch (JSONException e1) {
+                        e1.printStackTrace();
                     }
 
-                    firstCall = false;
-                } // MONITORLOOP end.
+                } catch (JSONException e) {
+                    SimpleCameraEventObserver.this.sendLog("getEvent: JSON format error. " + e.getMessage());
+                }
 
-                SimpleCameraEventObserver.this.mWhileEventMonitoring = false;
-            }
+                firstCall = false;
+            } // MONITORLOOP end.
+
+            SimpleCameraEventObserver.this.mWhileEventMonitoring = false;
         });
     }
 
@@ -274,7 +281,7 @@ public class SimpleCameraEventObserver {
         //2 CameraStatus
         String cameraStatus = JsonUtils.findStringInformation(replyJson, 1, "cameraStatus", "cameraStatus");
 
-        if (cameraStatus != null && !cameraStatus.equals(""))
+        if (cameraStatus != null && !TextUtils.isEmpty(cameraStatus))
         {
             this.sendLog("getEvent cameraStatus: " + cameraStatus);
             this.fireCameraStatusChangeListener(cameraStatus);
@@ -326,7 +333,7 @@ public class SimpleCameraEventObserver {
 
         //14 still size
         String imagesize = JsonUtils.findStringInformation(replyJson, 14, "stillSize", "currentSize");
-        if (imagesize != null || imagesize.equals(""))
+        if (imagesize != null || TextUtils.isEmpty(imagesize))
         {
             this.sendLog("getEvent imagesize: " +imagesize);
             this.fireImageSizeChangedListener(imagesize);
@@ -340,7 +347,7 @@ public class SimpleCameraEventObserver {
 
         //18 Exposure mode
         String expoMode = JsonUtils.findStringInformation(replyJson, 18, "exposureMode", "currentExposureMode");
-        if (expoMode != null && !expoMode.equals(""))
+        if (expoMode != null && !TextUtils.isEmpty(expoMode))
         {
             this.sendLog("getEvent expoMode: " + expoMode);
             this.fireExpoModeChangedListener(expoMode);
@@ -355,7 +362,7 @@ public class SimpleCameraEventObserver {
 
         //19 PostView Image Size
         String postview = JsonUtils.findStringInformation(replyJson, 19, "postviewImageSize", "currentPostviewImageSize");
-        if (postview != null && !postview.equals(""))
+        if (postview != null && !TextUtils.isEmpty(postview))
         {
             this.sendLog("getEvent postviewSize: " + postview);
             this.firePostviewChangedListener(postview);
@@ -403,13 +410,12 @@ public class SimpleCameraEventObserver {
         if (cexpo != -5000)
         {
             this.sendLog("getEvent currentExposure: " + cexpo);
-            int mExposureComp = cexpo;
             this.fireExposurCompChangeListener(cexpo + minexpo * -1);
         }
 
         //26 flash
         String mflash = JsonUtils.findStringInformation(replyJson, 26, "flashMode", "currentFlashMode");
-        if (mflash != null && !mflash.equals("") && !mflash.equals(this.flash))
+        if (mflash != null && !TextUtils.isEmpty(mflash) && !mflash.equals(this.flash))
         {
             this.flash = mflash;
             this.sendLog("getEvent flash:" + this.flash);
@@ -421,7 +427,7 @@ public class SimpleCameraEventObserver {
 
         //28 focusmode
         String focus = JsonUtils.findStringInformation(replyJson, 28, "focusMode", "currentFocusMode");
-        if (focus != null && !focus.equals(""))
+        if (focus != null && !TextUtils.isEmpty(focus))
         {
             this.sendLog("getEvent focusmode: " +focus);
             this.fireFocusChangedListener(focus);
@@ -445,7 +451,7 @@ public class SimpleCameraEventObserver {
 
         //33 whitebalance
         String wbval = JsonUtils.findStringInformation(replyJson,33, "whiteBalance", "currentWhiteBalanceMode");
-        if (!wbval.equals(""))
+        if (!TextUtils.isEmpty(wbval))
         {
             this.fireWbChangeListener(wbval);
             this.sendLog("WB mode: " + wbval);
@@ -453,12 +459,12 @@ public class SimpleCameraEventObserver {
 
         //34touch af position
         String touchSuccess = JsonUtils.findStringInformation(replyJson, 34, "touchAFPosition", "currentSet");
-        if (touchSuccess != null || !touchSuccess.equals(""))
+        if (touchSuccess != null || !TextUtils.isEmpty(touchSuccess))
             this.sendLog("got focus sucess:" + touchSuccess);
 
         //35 focus status
         String focusStatus = JsonUtils.findStringInformation(replyJson, 35, "focusStatus", "focusStatus");
-        if (!focusStatus.equals(""))
+        if (!TextUtils.isEmpty(focusStatus))
         {
             this.sendLog("focusstate: " + focusStatus);
             if (focusStatus.equals("Not Focusing"))
@@ -470,7 +476,7 @@ public class SimpleCameraEventObserver {
 
         //36 zoom settings
         String zoomSetting = JsonUtils.findStringInformation(replyJson, 36, "zoomSetting", "zoom");
-        if (zoomSetting != null && !zoomSetting.equals("")) {
+        if (zoomSetting != null && !TextUtils.isEmpty(zoomSetting)) {
             this.sendLog("getEvent zoomSettings: " + zoomSetting);
             this.fireZoomSettingChangedListener(zoomSetting);
         }
@@ -483,7 +489,7 @@ public class SimpleCameraEventObserver {
 
         //37 still quality
         String imageFormat = JsonUtils.findStringInformation(replyJson, 37, "stillQuality", "stillQuality");
-        if (imageFormat != null && !imageFormat.equals("")) {
+        if (imageFormat != null && !TextUtils.isEmpty(imageFormat)) {
             this.sendLog("getEvent imageformat: " + imageFormat);
             this.fireImageFormatChangedListener(imageFormat);
         }
@@ -497,7 +503,7 @@ public class SimpleCameraEventObserver {
 
         //38 cont shot
         String contshot = JsonUtils.findStringInformation(replyJson, 38, "contShootingMode", "contShootingMode");
-        if (contshot != null && !contshot.equals(""))
+        if (contshot != null && !TextUtils.isEmpty(contshot))
         {
             this.sendLog("getEvent contshot: " +contshot);
             this.fireContShotModeChangedListener(contshot);
@@ -526,7 +532,7 @@ public class SimpleCameraEventObserver {
         //53 TV color system
         //54 Tracking focus status
         String trackingFocusStatus = JsonUtils.findStringInformation(replyJson, 54, "trackingFocusStatus","trackingFocusStatus");
-        if (!trackingFocusStatus.equals(""))
+        if (!TextUtils.isEmpty(trackingFocusStatus))
         {
             this.sendLog("tracking focusstate: " + trackingFocusStatus);
             if (trackingFocusStatus.equals("Tracking"))
@@ -536,7 +542,7 @@ public class SimpleCameraEventObserver {
         }
         //55Tracking focus setting
         String tf = JsonUtils.findStringInformation(replyJson, 55, "trackingFocus", "trackingFocus");
-        if (tf != null && !tf.equals(""))
+        if (tf != null && !TextUtils.isEmpty(tf))
         {
             this.sendLog("getEvent contshot: " +tf);
             this.fireTrackingFocusChangedListener(tf);
@@ -623,7 +629,7 @@ public class SimpleCameraEventObserver {
             this.fireShutterValuesChangeListener(this.mShuttervals);
         }
         String shutterv = JsonUtils.findStringInformation(replyJson,32, "shutterSpeed", "currentShutterSpeed");
-        if (shutterv != null && !shutterv.equals("") && !shutterv.equals(this.shutter))
+        if (shutterv != null && !TextUtils.isEmpty(shutterv) && !shutterv.equals(this.shutter))
         {
             this.shutter = shutterv;
             this.sendLog("getEvent shutter:" + this.shutter);
@@ -643,7 +649,7 @@ public class SimpleCameraEventObserver {
 
         String fnumberv = JsonUtils.findStringInformation(replyJson,27, "fNumber", "currentFNumber");
 
-        if (fnumberv != null && !fnumberv.equals("") && !fnumberv.equals(this.fnumber))
+        if (fnumberv != null && !TextUtils.isEmpty(fnumberv) && !fnumberv.equals(this.fnumber))
         {
             this.fnumber = fnumberv;
             this.sendLog("getEvent fnumber:" + this.fnumber);
@@ -662,7 +668,7 @@ public class SimpleCameraEventObserver {
         }
         String isoval = JsonUtils.findStringInformation(replyJson,29, "isoSpeedRate", "currentIsoSpeedRate");
 
-        if (isoval != null && !isoval.equals("") && !isoval.equals(this.iso))
+        if (isoval != null && !TextUtils.isEmpty(isoval) && !isoval.equals(this.iso))
         {
 
             this.iso = isoval;
@@ -757,100 +763,73 @@ public class SimpleCameraEventObserver {
     }
 
     private void fireExposurCompMinChangeListener(final int ex) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onExposureCompensationMinChanged(ex);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onExposureCompensationMinChanged(ex);
             }
         });
     }
 
     private void fireExposurCompMaxChangeListener(final int ex) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onExposureCompensationMaxChanged(ex);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onExposureCompensationMaxChanged(ex);
             }
         });
     }
 
     private void fireExposurCompChangeListener(final int ex) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onExposureCompensationChanged(ex);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onExposureCompensationChanged(ex);
             }
         });
     }
 
     private void fireFNumberChangeListener(final String pfnum) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onFnumberChanged(pfnum);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onFnumberChanged(pfnum);
             }
         });
     }
 
     private void fireImageListener(final String[] pfnum) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onImagesRecieved(pfnum);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onImagesRecieved(pfnum);
             }
         });
     }
 
     private void fireFnumberValuesChangeListener(final String[] pfnum) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onFnumberValuesChanged(pfnum);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onFnumberValuesChanged(pfnum);
             }
         });
     }
 
     private void fireShutterValuesChangeListener(final String[] pfnum) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onShutterSpeedValuesChanged(pfnum);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onShutterSpeedValuesChanged(pfnum);
             }
         });
     }
 
     private void fireShutterSpeedChangeListener(final String pfnum) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onShutterSpeedChanged(pfnum);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onShutterSpeedChanged(pfnum);
             }
         });
     }
 
     private void fireFlashChangeListener(final String pfnum) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onFlashChanged(pfnum);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onFlashChanged(pfnum);
             }
         });
     }
@@ -861,23 +840,17 @@ public class SimpleCameraEventObserver {
      * @param availableApis
      */
     private void fireApiListModifiedListener(final List<String> availableApis) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onApiListModified(availableApis);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onApiListModified(availableApis);
             }
         });
     }
 
     private void fireTimeoutListener() {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onTimout();
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onTimout();
             }
         });
     }
@@ -888,15 +861,12 @@ public class SimpleCameraEventObserver {
      * @param status
      */
     private void fireCameraStatusChangeListener(final String status) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onCameraStatusChanged(status);
-                }
-                if (mStateListener != null) {
-                    mStateListener.onCameraStatusChanged(status);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onCameraStatusChanged(status);
+            }
+            if (mStateListener != null) {
+                mStateListener.onCameraStatusChanged(status);
             }
         });
     }
@@ -907,12 +877,9 @@ public class SimpleCameraEventObserver {
      * @param status
      */
     private void fireLiveviewStatusChangeListener(final boolean status) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onLiveviewStatusChanged(status);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onLiveviewStatusChanged(status);
             }
         });
     }
@@ -923,14 +890,11 @@ public class SimpleCameraEventObserver {
      * @param shootMode
      */
     private void fireShootModeChangeListener(final String shootMode) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onShootModeChanged(shootMode);
-                }
-                else Log.d(TAG, "onShootModeChanged listner NULL!");
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onShootModeChanged(shootMode);
             }
+            else Log.d(TAG, "onShootModeChanged listner NULL!");
         });
     }
 
@@ -942,12 +906,9 @@ public class SimpleCameraEventObserver {
      */
     private void fireZoomInformationChangeListener(int zoomNumberBox,
                                                    final int zoomPosition, int zoomPositionCurrentBox) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onZoomPositionChanged(zoomPosition);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onZoomPositionChanged(zoomPosition);
             }
         });
     }
@@ -958,222 +919,162 @@ public class SimpleCameraEventObserver {
      * @param storageId
      */
     private void fireStorageIdChangeListener(final String storageId) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onStorageIdChanged(storageId);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onStorageIdChanged(storageId);
             }
         });
     }
 
     private void fireIsoChangeListener(final String iso) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onIsoChanged(iso);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onIsoChanged(iso);
             }
         });
     }
 
     private void fireIsoValuesChangeListener(final String[] iso) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onIsoValuesChanged(iso);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onIsoValuesChanged(iso);
             }
         });
     }
 
     private void fireFocusLockedChangeListener(final boolean locked) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onFocusLocked(locked);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onFocusLocked(locked);
             }
         });
     }
 
     private void fireWbChangeListener(final String wb) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onWhiteBalanceValueChanged(wb);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onWhiteBalanceValueChanged(wb);
             }
         });
     }
 
     private void fireExpoModeChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onExposureModeChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onExposureModeChanged(expo);
             }
         });
     }
 
     private void fireExpoModesChangedListener(final String[] expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onExposureModesChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onExposureModesChanged(expo);
             }
         });
     }
 
     private void fireZoomSettingsChangedListener(final String[] expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onZoomSettingsValuesCHanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onZoomSettingsValuesCHanged(expo);
             }
         });
     }
 
     private void fireImageFormatsChangedListener(final String[] expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onImageFormatsChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onImageFormatsChanged(expo);
             }
         });
     }
 
     private void fireZoomSettingChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onZoomSettingValueCHanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onZoomSettingValueCHanged(expo);
             }
         });
     }
 
     private void fireImageFormatChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onImageFormatChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onImageFormatChanged(expo);
             }
         });
     }
 
 
     private void fireImageSizeChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onImageSizeChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onImageSizeChanged(expo);
             }
         });
     }
 
     private void fireContShotModesChangedListener(final String[] expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onContshotModesChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onContshotModesChanged(expo);
             }
         });
     }
 
     private void fireContShotModeChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onContshotModeChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onContshotModeChanged(expo);
             }
         });
     }
 
     private void fireFocusModesChangedListener(final String[] expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onFocusModesChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onFocusModesChanged(expo);
             }
         });
     }
 
     private void fireFocusChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onFocusModeChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onFocusModeChanged(expo);
             }
         });
     }
 
     private void firePostViewModesChangedListener(final String[] expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onPostviewModesChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onPostviewModesChanged(expo);
             }
         });
     }
 
     private void firePostviewChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onPostviewModeChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onPostviewModeChanged(expo);
             }
         });
     }
 
     private void fireTrackingFocusModesChangedListener(final String[] expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onTrackingFocusModesChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onTrackingFocusModesChanged(expo);
             }
         });
     }
 
     private void fireTrackingFocusChangedListener(final String expo) {
-        mUiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (mListener != null) {
-                    mListener.onTrackingFocusModeChanged(expo);
-                }
+        mUiHandler.post(() -> {
+            if (mListener != null) {
+                mListener.onTrackingFocusModeChanged(expo);
             }
         });
     }

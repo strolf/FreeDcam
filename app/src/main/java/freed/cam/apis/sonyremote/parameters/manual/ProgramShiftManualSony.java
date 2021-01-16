@@ -30,6 +30,7 @@ import java.util.Set;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.sonyremote.parameters.ParameterHandler;
 import freed.cam.apis.sonyremote.sonystuff.JsonUtils;
+import freed.settings.SettingKeys;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
 
@@ -42,34 +43,20 @@ public class ProgramShiftManualSony extends BaseManualParameterSony
     private final BaseManualParameterSony shutter;
 
     public ProgramShiftManualSony(CameraWrapperInterface cameraUiWrapper) {
-        super("", "getSupportedProgramShift", "setProgramShift", cameraUiWrapper);
-        shutter = (BaseManualParameterSony) cameraUiWrapper.getParameterHandler().ManualShutter;
-        BaseManualParameterSony fnumber = (BaseManualParameterSony) cameraUiWrapper.getParameterHandler().ManualFNumber;
+        super("", "getSupportedProgramShift", "setProgramShift", cameraUiWrapper,SettingKeys.M_ProgramShift);
+        shutter = (BaseManualParameterSony) cameraUiWrapper.getParameterHandler().get(SettingKeys.M_ExposureTime);
+        BaseManualParameterSony fnumber = (BaseManualParameterSony) cameraUiWrapper.getParameterHandler().get(SettingKeys.M_Fnumber);
     }
 
     @Override
-    public void SonyApiChanged(Set<String> mAvailableCameraApiSet)
-    {
-        this.mAvailableCameraApiSet = mAvailableCameraApiSet;
-        if (isSupported != JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet))
-        {
-            isSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet);
-        }
-        fireIsSupportedChanged(isSupported);
-        fireIsReadOnlyChanged(true);
-        if (isSetSupported != JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet))
-        {
-            isSetSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet);
-        }
-        fireIsReadOnlyChanged(isSetSupported);
-
+    public void SonyApiChanged(Set<String> mAvailableCameraApiSet) {
+        super.SonyApiChanged(mAvailableCameraApiSet);
     }
-
 
     @Override
     public String[] getStringValues()
     {
-        if (stringvalues == null)
+        if (stringvalues == null ||stringvalues.length == 0)
             getminmax();
         return stringvalues;
     }
@@ -77,60 +64,55 @@ public class ProgramShiftManualSony extends BaseManualParameterSony
     @Override
     public String GetStringValue()
     {
-        if (stringvalues == null)
+        if (stringvalues == null || stringvalues.length < currentInt)
             getminmax();
-        return stringvalues[currentInt];
+        if (stringvalues != null && stringvalues.length > currentInt)
+            return stringvalues[currentInt];
+        return  "0";
     }
 
     private void getminmax() {
-        if (isSupported && isSetSupported)
-        {
-            FreeDPool.Execute(new Runnable()
-            {
-                @Override
-                public void run()
+            FreeDPool.Execute(() -> {
+                try
                 {
-                    try
+                    Log.d(TAG, "Trying to get String Values from: " + VALUES_TO_GET);
+                    JSONObject object =  ((ParameterHandler) cameraUiWrapper.getParameterHandler()).mRemoteApi.getParameterFromCamera(VALUES_TO_GET);
+                    JSONArray array = object.getJSONArray("result");
+                    JSONArray subarray = array.getJSONArray(0);
+                    stringvalues = JsonUtils.ConvertJSONArrayToStringArray(subarray);
+                    if (stringvalues == null || stringvalues.length != 2)
+                        return;
+                    int max = Integer.parseInt(stringvalues[0]);
+                    int min = Integer.parseInt(stringvalues[1]);
+                    ArrayList<String> r = new ArrayList<>();
+                    for (int i = min; i<= max; i++)
                     {
-                        Log.d(TAG, "Trying to get String Values from: " + VALUES_TO_GET);
-                        JSONObject object =  ((ParameterHandler) cameraUiWrapper.getParameterHandler()).mRemoteApi.getParameterFromCamera(VALUES_TO_GET);
-                        JSONArray array = object.getJSONArray("result");
-                        JSONArray subarray = array.getJSONArray(0);
-                        stringvalues = JsonUtils.ConvertJSONArrayToStringArray(subarray);
-                        if (stringvalues == null || stringvalues.length != 2)
-                            return;
-                        int max = Integer.parseInt(stringvalues[0]);
-                        int min = Integer.parseInt(stringvalues[1]);
-                        ArrayList<String> r = new ArrayList<>();
-                        for (int i = min; i<= max; i++)
-                        {
-                            r.add(i+"");
-                        }
-                        stringvalues =new String[r.size()];
+                        r.add(i+"");
+                    }
+                    stringvalues =new String[r.size()];
 
-                        String[] shut = shutter.getStringValues();
-                        if (shut != null && r != null && shut.length == r.size())
+                    String[] shut = shutter.getStringValues();
+                    if (shut != null && r != null && shut.length == r.size())
+                    {
+                        String s = shutter.GetStringValue();
+                        for (int i = 0; i < shut.length; i++)
                         {
-                            String s = shutter.GetStringValue();
-                            for (int i = 0; i < shut.length; i++)
+                            if (s.equals(shut[i]))
                             {
-                                if (s.equals(shut[i]))
-                                {
-                                    currentInt = i;
-                                    break;
-                                }
+                                currentInt = i;
+                                break;
                             }
                         }
-                        r.toArray(stringvalues);
-                        fireStringValuesChanged(stringvalues);
-                        onIntValueChanged(currentInt);
-
-
-                    } catch (IOException | JSONException ex) {
-                        Log.WriteEx(ex);
-                        Log.e(TAG, "Error Trying to get String Values from: " + VALUES_TO_GET);
-                        stringvalues = new String[0];
                     }
+                    r.toArray(stringvalues);
+                    fireStringValuesChanged(stringvalues);
+                    onIntValueChanged(currentInt);
+
+
+                } catch (IOException | JSONException ex) {
+                    Log.WriteEx(ex);
+                    Log.e(TAG, "Error Trying to get String Values from: " + VALUES_TO_GET);
+                    stringvalues = new String[0];
                 }
             });
             while (stringvalues == null)
@@ -139,27 +121,23 @@ public class ProgramShiftManualSony extends BaseManualParameterSony
                 } catch (InterruptedException ex) {
                     Log.WriteEx(ex);
                 }
-        }
+
     }
 
     @Override
-    public void SetValue(final int valueToSet)
+    public void SetValue(final int valueToSet, boolean setToCamera)
     {
         currentInt = valueToSet;
-       FreeDPool.Execute(new Runnable() {
-            @Override
-            public void run()
-            {
-                JSONArray array = null;
-                try {
-                    array = new JSONArray().put(0, Integer.parseInt(stringvalues[currentInt]));
-                    JSONObject object = mRemoteApi.setParameterToCamera(VALUE_TO_SET, array);
-                    fireIntValueChanged(valueToSet);
-                } catch (JSONException | IOException ex) {
-                    Log.WriteEx(ex);
-                }
-            }
-        });
+       FreeDPool.Execute(() -> {
+           JSONArray array = null;
+           try {
+               array = new JSONArray().put(0, Integer.parseInt(stringvalues[currentInt]));
+               JSONObject object = mRemoteApi.setParameterToCamera(VALUE_TO_SET, array);
+               fireIntValueChanged(valueToSet);
+           } catch (JSONException | IOException ex) {
+               Log.WriteEx(ex);
+           }
+       });
     }
 
 

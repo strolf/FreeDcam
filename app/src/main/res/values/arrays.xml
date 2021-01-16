@@ -36,6 +36,7 @@
         <item>QCom16bit</item>
         <item>Plain16bit</item>
         <item>Mipi16bit</item>
+        <item>Pure16bit_To_12bit</item>
     </string-array>
     <string-array name="interval_shutter_sleep" translatable="false">
         <item>0 sec</item>
@@ -101,6 +102,7 @@
         <item>12 h</item>
         <item>24 h</item>
         <item>48 h</item>
+        <item>∞</item>
         </string-array>
 
     <string name="Off" translatable="false">Off</string >
@@ -159,7 +161,7 @@
 
     <string-array name="flashModes"  translatable="false">
         <item>@string/off</item>
-        <item>@string/flash_singel</item>
+        <item>@string/flash_single</item>
         <item>@string/flash_torch</item>
         </string-array>
 
@@ -224,6 +226,11 @@
         <item>@string/highquality</item>
     </string-array>
 
+    <string-array name="videostabilisationmodes"  translatable="false">
+        <item>@string/off</item>
+        <item>@string/on</item>
+    </string-array>
+
     <string-array name="aemodes"  translatable="false">
         <item>@string/off</item>
         <item>@string/on</item>
@@ -240,6 +247,12 @@
 
     <string-array name="tonemapmodes" translatable="false">
         <item>CONTRAST_CURVE</item>
+        <item>@string/fast</item>
+        <item>@string/highquality</item>
+    </string-array>
+
+    <string-array name="shadingmodes" translatable="false">
+        <item>@string/off</item>
         <item>@string/fast</item>
         <item>@string/highquality</item>
     </string-array>
@@ -364,7 +377,6 @@
         <item>7700,226,233,255</item>
         <item>7800,224,232,255</item>
         <item>7900,223,231,255</item>
-
         <item>8000,221,230,255</item>
         <item>8100,220,229,255</item>
         <item>8200,218,228,255</item>
@@ -390,5 +402,32 @@
         <item>10000,201,218,255</item>
     </string-array>
 
-    <!-- DO NOT TRANSLATE END -->
+    <string-array name="selftimervalues">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+
+    <string-array name="focuspeakColors">
+        <item>@string/fcolor_red</item>
+        <item>@string/fcolor_green</item>
+        <item>@string/fcolor_blue</item>
+        <item>@string/fcolor_white</item>
+        <item>@string/fcolor_yellow</item>
+        <item>@string/fcolor_magenta</item>
+        <item>@string/fcolor_cyan</item>
+    </string-array>
+
+    <string-array name="video_audio_source">
+        <item>@string/video_audio_source_default</item>
+        <item>@string/video_audio_source_mic</item>
+        <item>@string/video_audio_source_camcorder</item>
+        <item>@string/video_audio_source_voice_recognition</item>
+        <item>@string/video_audio_source_voice_communication</item>
+    <!--  <item>@string/video_audio_source_unprocessed</item> -->
+  </string-array>
+
+  <!-- DO NOT TRANSLATE END -->
 </resources>

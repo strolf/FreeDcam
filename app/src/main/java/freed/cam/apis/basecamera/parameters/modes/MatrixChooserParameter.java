@@ -19,11 +19,14 @@
 
 package freed.cam.apis.basecamera.parameters.modes;
 
+import android.text.TextUtils;
+
 import java.util.HashMap;
 
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.dng.CustomMatrix;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -32,33 +35,30 @@ import freed.utils.Log;
 public class MatrixChooserParameter extends AbstractParameter
 {
     public static final String NEXUS6 = "Nexus6";
-    public static final String G4 = "G4";
     private final HashMap<String, CustomMatrix> custommatrixes;
     private String currentval = "off";
-    private boolean isSupported;
-    private AppSettingsManager appSettingsManager;
 
     final String TAG = MatrixChooserParameter.class.getSimpleName();
 
-    public MatrixChooserParameter(HashMap<String, CustomMatrix> matrixHashMap, AppSettingsManager appSettingsManager)
+    public MatrixChooserParameter(HashMap<String, CustomMatrix> matrixHashMap)
     {
-        this.appSettingsManager = appSettingsManager;
+        super(SettingKeys.MATRIX_SET);
         this.custommatrixes = matrixHashMap;
-        isSupported = true;
-        currentval = appSettingsManager.matrixset.get();
-    }
-
-    @Override
-    public boolean IsSupported() {
-        return isSupported;
+        setViewState(ViewState.Visible);
+        currentval = SettingsManager.get(SettingKeys.MATRIX_SET).get();
+        if (TextUtils.isEmpty(currentval))
+            currentval = "off";
+        fireStringValueChanged(currentval);
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCamera)
     {
+        if (TextUtils.isEmpty(valueToSet))
+            return;
         currentval = valueToSet;
         fireStringValueChanged(currentval);
-        appSettingsManager.matrixset.set(valueToSet);
+        SettingsManager.get(SettingKeys.MATRIX_SET).set(valueToSet);
     }
 
     @Override
@@ -70,11 +70,6 @@ public class MatrixChooserParameter extends AbstractParameter
     public String[] getStringValues()
     {
         return custommatrixes.keySet().toArray(new String[custommatrixes.size()]);
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return isSupported;
     }
 
     public CustomMatrix GetCustomMatrix(String key)

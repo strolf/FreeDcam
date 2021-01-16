@@ -20,8 +20,11 @@
 package freed.cam.apis.basecamera;
 
 import android.graphics.Rect;
-import android.view.MotionEvent;
 
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
+import freed.cam.events.EventBusHelper;
 import freed.utils.Log;
 
 /**
@@ -32,18 +35,43 @@ public abstract class AbstractFocusHandler
     private final String TAG = AbstractFocusHandler.class.getSimpleName();
     protected CameraWrapperInterface cameraUiWrapper;
 
-    public AbstractFocusHandler(CameraWrapperInterface cameraUiWrapper)
+
+    @Subscribe(threadMode = ThreadMode.BACKGROUND)
+    public void onFocusCoordinates(FocusCoordinates focusCoordinates)
+    {
+        startTouchFocus(focusCoordinates);
+    }
+
+    public class FocusCoordinates
+    {
+        public int x;
+        public int y;
+        public int width;
+        public int height;
+    }
+
+    protected abstract void startTouchFocus(FocusCoordinates obj);
+
+    protected AbstractFocusHandler(CameraWrapperInterface cameraUiWrapper)
     {
         this.cameraUiWrapper = cameraUiWrapper;
     }
 
-    public abstract void StartFocus();
-    public abstract void StartTouchToFocus(int x, int y,int width, int height);
+    public void StartTouchToFocus(int x1, int y1,int width1, int height1)
+    {
+        FocusCoordinates focusCoordinates = new FocusCoordinates();
+        focusCoordinates.x = x1;
+        focusCoordinates.y = y1;
+        focusCoordinates.width = width1;
+        focusCoordinates.height = height1;
+        EventBusHelper.post(focusCoordinates);
+        //backgroundHandler.sendMessage(backgroundHandler.obtainMessage(MSG_SET_TOUCHTOFOCUS,focusCoordinates));
+    }
+
     public abstract void SetMeteringAreas(int x, int y, int width, int height);
     public FocusHandlerInterface focusEvent;
     public abstract boolean isAeMeteringSupported();
-    public abstract void SetMotionEvent(MotionEvent event);
-
+    public abstract boolean isTouchSupported();
 
     protected void logFocusRect(Rect rect)
     {

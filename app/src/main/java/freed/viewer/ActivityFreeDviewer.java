@@ -31,169 +31,128 @@ import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 
+import androidx.databinding.Observable;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.troop.freedcam.BR;
 import com.troop.freedcam.R;
 
 import java.util.List;
 
 import freed.ActivityAbstract;
+import freed.file.FileListController;
+import freed.file.holder.BaseHolder;
 import freed.utils.FreeDPool;
-import freed.utils.LocationHandler;
-import freed.utils.PermissionHandler;
-import freed.utils.StorageFileHandler;
-import freed.viewer.gridview.GridViewFragment;
+import freed.utils.LocationManager;
+import freed.utils.Log;
+import freed.utils.PermissionManager;
+import freed.viewer.gridview.modelview.GridViewFragmentModelView;
+import freed.viewer.gridview.views.GridViewFragment;
 import freed.viewer.helper.BitmapHelper;
-import freed.viewer.holder.FileHolder;
-import freed.viewer.screenslide.ScreenSlideFragment;
+import freed.viewer.screenslide.modelview.ScreenSlideFragmentModelView;
+import freed.viewer.screenslide.views.ScreenSlideFragment;
 
 /**
  * Created by troop on 11.12.2015.
  */
 public class ActivityFreeDviewer extends ActivityAbstract
 {
-    private final String TAGGrid = GridViewFragment.class.getSimpleName();
-    private final String TAGSlide = ScreenSlideFragment.class.getSimpleName();
+    private final String TAG = ActivityFreeDviewer.class.getSimpleName();
     private GridViewFragment gridViewFragment;
     private ScreenSlideFragment screenSlideFragment;
     private FrameLayout gridholder;
     private FrameLayout slideholder;
     private AnimatorSet mCurrentAnimator;
     private int mShortAnimationDuration;
+    private GridViewFragmentModelView gridViewFragmentModelView;
+    private ScreenSlideFragmentModelView screenSlideFragmentModelView;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+        init();
     }
+
 
     @Override
-    protected void initOnCreate() {
-        super.initOnCreate();
-        getPermissionHandler().hasExternalSDPermission(onExtSdCallback);
+    protected void setContentToView() {
+        Log.d(TAG, "Set Content to view");
+        setContentView(R.layout.freedviewer_activity);
     }
-
-    private PermissionHandler.PermissionCallback onExtSdCallback = new PermissionHandler.PermissionCallback() {
-        @Override
-        public void permissionGranted(boolean granted) {
-            if (granted)
-                init();
-            else
-                finish();
-        }
-    };
-
 
     private void init()
     {
+        Log.d(TAG,"init");
+        gridViewFragmentModelView =  new ViewModelProvider(this).get(GridViewFragmentModelView.class);
+        screenSlideFragmentModelView = new ViewModelProvider(this).get(ScreenSlideFragmentModelView.class);
+        bitmapHelper =new BitmapHelper(getApplicationContext(),getResources().getDimensionPixelSize(R.dimen.image_thumbnails_size));
+        fileListController = new FileListController(getApplicationContext());
+        gridViewFragmentModelView.setFileListController(fileListController);
+        gridViewFragmentModelView.setBitmapHelper(bitmapHelper);
+        screenSlideFragmentModelView.setFileListController(fileListController);
+        screenSlideFragmentModelView.setBitmapHelper(bitmapHelper);
+        mShortAnimationDuration = getResources().getInteger(
+                android.R.integer.config_shortAnimTime);
+        gridViewFragment = new GridViewFragment();
+        gridViewFragment.setGridViewFragmentModelView(gridViewFragmentModelView);
+        gridViewFragment.SetOnGridItemClick(onGridItemClick);
 
-        bitmapHelper =new BitmapHelper(getApplicationContext(),getResources().getDimensionPixelSize(R.dimen.image_thumbnails_size),this);
-        storageHandler = new StorageFileHandler(this);
-        FreeDPool.Execute(new Runnable() {
+
+
+        screenSlideFragment = new ScreenSlideFragment();
+        screenSlideFragment.setOnBackClickListner(onScreenSlideBackClick);
+        screenSlideFragment.setScreenSlideFragmentModelView(screenSlideFragmentModelView);
+        slideholder =  findViewById(R.id.freedviewer_screenslideholder);
+        gridholder = findViewById(R.id.freedviewer_gridviewholder);
+        slideholder.setVisibility(View.GONE);
+        replaceCameraFragment(gridViewFragment,"Gridview", R.id.freedviewer_gridviewholder);
+        replaceCameraFragment(screenSlideFragment,"Gridview", R.id.freedviewer_screenslideholder);
+
+
+        gridViewFragmentModelView.getFilesHolderModel().addOnPropertyChangedCallback(new Observable.OnPropertyChangedCallback() {
             @Override
-            public void run() {
-                LoadDCIMDirs();
+            public void onPropertyChanged(Observable sender, int propertyId) {
+                if (BR.formatType == propertyId)
+                {
+                    screenSlideFragmentModelView.getFilesHolderModel().setFormatTypes(gridViewFragmentModelView.getFilesHolderModel().getFormatType());
+                }
             }
         });
 
-        mShortAnimationDuration = getResources().getInteger(
-                android.R.integer.config_shortAnimTime);
-        setContentView(R.layout.freedviewer_activity);
-        gridViewFragment = (GridViewFragment) getSupportFragmentManager().findFragmentById(R.id.freedviewer_gridview);
-        gridViewFragment.SetOnGridItemClick(onGridItemClick);
-        screenSlideFragment = (ScreenSlideFragment)getSupportFragmentManager().findFragmentById(R.id.freedviewer_screenslide_fragment);
-        screenSlideFragment.SetOnThumbClick(onScreenSlideBackClick);
-        slideholder = (FrameLayout) findViewById(R.id.freedviewer_screenslideholder);
-        gridholder = (FrameLayout)findViewById(R.id.freedviewer_gridviewholder);
-        slideholder.setVisibility(View.GONE);
+        FreeDPool.Execute(() -> fileListController.loadDefaultFiles());
     }
 
-    /**
-     * Loads all files stored in DCIM/FreeDcam from internal and external SD
-     * and notfiy gridview and screenslide that files got changed
-     */
-    @Override
-    public void LoadFreeDcamDCIMDirsFiles() {
-        super.LoadFreeDcamDCIMDirsFiles();
-        gridViewFragment.NotifyDataSetChanged();
-        screenSlideFragment.NotifyDATAhasChanged(files);
-    }
-
-    /**
-     * Loads the files stored from that folder
-     * and notfiy gridview and screenslide that files got changed
-     * @param fileHolder the folder to lookup
-     * @param types the file format to load
-     */
-    @Override
-    public void LoadFolder(FileHolder fileHolder, ActivityAbstract.FormatTypes types) {
-        super.LoadFolder(fileHolder, types);
-        gridViewFragment.NotifyDataSetChanged();
-        screenSlideFragment.NotifyDATAhasChanged(files);
+    private void replaceCameraFragment(Fragment fragment, String id, int layout)
+    {
+        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+        //transaction.setCustomAnimations(R.anim.left_to_right_enter, R.anim.left_to_right_exit);
+        transaction.replace(layout, fragment, id);
+        transaction.commit();
     }
 
     @Override
-    public LocationHandler getLocationHandler() {
+    protected void onResume() {
+        super.onResume();
+        if (getPermissionManager().isPermissionGranted(PermissionManager.Permissions.SdCard) && (fileListController.getFiles() == null || fileListController.getFiles().size() == 0))
+            FreeDPool.Execute(() -> fileListController.loadDefaultFiles());
+    }
+
+    @Override
+    public LocationManager getLocationManager() {
         return null;
     }
 
-    /**
-     * Loads all Folders from DCIM dir from internal and external SD
-     * and notfiy gridview and screenslide that files got changed
-     */
-    @Override
-    public void LoadDCIMDirs()
-    {
-        super.LoadDCIMDirs();
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (gridViewFragment != null)
-                    gridViewFragment.NotifyDataSetChanged();
-                if (screenSlideFragment != null)
-                    screenSlideFragment.NotifyDATAhasChanged(files);
-            }
-        });
+    private final ScreenSlideFragment.ButtonClick onScreenSlideBackClick = this::loadGridView;
 
-    }
-
-    @Override
-    public void DeleteFiles(final List<FileHolder> files) {
-        super.DeleteFiles(files);
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                gridViewFragment.NotifyDataSetChanged();
-                screenSlideFragment.NotifyDATAhasChanged(files);
-            }
-        });
-    }
-
-    @Override
-    public boolean DeleteFile(FileHolder file)
-    {
-        boolean del = super.DeleteFile(file);
-        gridViewFragment.NotifyDataSetChanged();
-        screenSlideFragment.NotifyDATAhasChanged(files);
-        return del;
-    }
-
-    private final ScreenSlideFragment.I_ThumbClick onScreenSlideBackClick = new ScreenSlideFragment.I_ThumbClick() {
-        @Override
-        public void onThumbClick(int position,View view)
-        {
-            loadGridView(position,view);
-        }
-    };
-
-    private final ScreenSlideFragment.I_ThumbClick onGridItemClick = new ScreenSlideFragment.I_ThumbClick() {
-        @Override
-        public void onThumbClick(int position, View view)
-        {
-            loadScreenSlide(position,view);
-        }
-    };
+    private final ScreenSlideFragment.ButtonClick onGridItemClick = this::loadScreenSlide;
 
     private void loadGridView(int position, View view)
     {
+        //replaceCameraFragment(gridViewFragment,"Gridview");
         if (mCurrentAnimator != null) {
             mCurrentAnimator.cancel();
         }
@@ -212,7 +171,8 @@ public class ActivityFreeDviewer extends ActivityAbstract
         // view. Also set the container view's offset as the origin for the
         // bounds, since that's the origin for the positioning animation
         // properties (X, Y).
-        griditem.getGlobalVisibleRect(startBounds);
+        if (griditem != null)
+            griditem.getGlobalVisibleRect(startBounds);
         gridholder.getGlobalVisibleRect(finalBounds, globalOffset);
         startBounds.offset(-globalOffset.x, -globalOffset.y);
         finalBounds.offset(-globalOffset.x, -globalOffset.y);
@@ -362,35 +322,29 @@ public class ActivityFreeDviewer extends ActivityAbstract
         });
         set.start();
         mCurrentAnimator = set;
-
-    }
-
-    @Override
-    public void WorkHasFinished(final FileHolder fileHolder)
-    {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                fileHolder.UpdateImage();
-            }
-        });
-
-    }
-
-    @Override
-    public void WorkHasFinished(FileHolder[] fileHolder) {
-
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data)
     {
-        //super.onActivityResult(requestCode, resultCode, data);
+        super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == gridViewFragment.STACK_REQUEST || requestCode == gridViewFragment.DNGCONVERT_REQUEST)
         {
-            FileHolder f = getFiles().get(0).getParent();
-            LoadFolder(f, gridViewFragment.formatsToShow);
+            List<BaseHolder> files = fileListController.getFiles();
+            if(files.size() > 0 && files.get(0).IsFolder()) {
+
+                BaseHolder f =  files.get(0);
+                fileListController.LoadFolder(f, gridViewFragmentModelView.formatsToShow);
+            }
+            else
+                fileListController.loadDefaultFiles();
         }
+       /* else if (requestCode == ActivityAbstract.DELETE_REQUEST_CODE)
+        {
+            screenSlideFragmentModelView.getFilesHolderModel().notifyChange();
+            gridViewFragmentModelView.getFilesHolderModel().notifyChange();
+        }*/
 
     }
+
 }

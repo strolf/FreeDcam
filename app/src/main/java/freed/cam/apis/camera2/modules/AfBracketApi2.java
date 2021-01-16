@@ -26,11 +26,13 @@ import android.os.Handler;
 
 import com.troop.freedcam.R;
 
-import java.io.File;
-
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract;
-import freed.utils.AppSettingsManager;
+import freed.cam.apis.camera2.parameters.manual.ManualFocus;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
+import freed.utils.Log;
 
 /**
  * Created by troop on 18.08.2016.
@@ -38,19 +40,20 @@ import freed.utils.AppSettingsManager;
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class AfBracketApi2 extends PictureModuleApi2
 {
+    private final String TAG = AfBracketApi2.class.getSimpleName();
+    private ManualFocus manualFocus;
+
     public AfBracketApi2(CameraWrapperInterface cameraUiWrapper, Handler mBackgroundHandler, Handler mainHandler) {
         super(cameraUiWrapper,mBackgroundHandler,mainHandler);
-        name = cameraUiWrapper.getResString(R.string.module_afbracket);
+        name = FreedApplication.getStringFromRessources(R.string.module_afbracket);
     }
 
-    private final int PICSTOTAKE = 10;
+    private int PICSTOTAKE = 10;
 
     private int focusStep;
     private int currentFocusPos;
-    private int focuslength;
+    private int focusCaptureRange;
     private int min;
-    private File[] savedFiles;
-    private int currentFileCount;
 
     @Override
     public String ShortName() {
@@ -65,9 +68,10 @@ public class AfBracketApi2 extends PictureModuleApi2
     @Override
     public void InitModule() {
         super.InitModule();
-        cameraUiWrapper.getParameterHandler().Burst.SetValue(PICSTOTAKE-1);
-        focuslength = parameterHandler.ManualFocus.getStringValues().length -1;
-        focusStep =  focuslength/PICSTOTAKE;
+        manualFocus = (ManualFocus) cameraUiWrapper.getParameterHandler().get(SettingKeys.M_Focus);
+        cameraUiWrapper.getParameterHandler().get(SettingKeys.M_Burst).SetValue(PICSTOTAKE-1, true);
+        focusCaptureRange = parameterHandler.get(SettingKeys.M_Focus).getStringValues().length -1;
+        focusStep =  focusCaptureRange /PICSTOTAKE;
         currentFocusPos = 1;
         changeCaptureState(ModuleHandlerAbstract.CaptureStates.image_capture_stop);
 
@@ -81,15 +85,13 @@ public class AfBracketApi2 extends PictureModuleApi2
     @Override
     protected void onStartTakePicture() {
         super.onStartTakePicture();
-        if (mrawImageReader != null)
-            savedFiles = new File[PICSTOTAKE*2];
-        else
-            savedFiles = new File[PICSTOTAKE];
-        currentFileCount = 0;
+        PICSTOTAKE = cameraUiWrapper.getParameterHandler().get(SettingKeys.M_Burst).GetValue();
+        cameraUiWrapper.captureSessionHandler.SetCaptureParameter(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF);
+        cameraUiWrapper.captureSessionHandler.SetPreviewParameter(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF,true);
         int max  = 0;
         try {
-            min = Integer.parseInt(appSettingsManager.getApiString(AppSettingsManager.SETTING_AFBRACKETMIN));
-            max = Integer.parseInt(appSettingsManager.getApiString(AppSettingsManager.SETTING_AFBRACKETMAX));
+            min = Integer.parseInt(SettingsManager.get(SettingKeys.AF_BRACKET_MIN).get());
+            max = Integer.parseInt(SettingsManager.get(SettingKeys.AF_BRACKET_MAX).get());
         }
         catch (NumberFormatException ex)
         {
@@ -99,37 +101,40 @@ public class AfBracketApi2 extends PictureModuleApi2
 
         if (min == 0 && max == 0)
         {
-            focuslength = parameterHandler.ManualFocus.getStringValues().length -1;
-            focusStep = focuslength /PICSTOTAKE;
+            focusCaptureRange = SettingsManager.get(SettingKeys.M_Focus).getValues().length -1;
+            focusStep = focusCaptureRange /PICSTOTAKE;
             currentFocusPos = 1;
         }
-        else
-        {
-            focuslength = max - min;
-            focusStep = focuslength /PICSTOTAKE;
-            currentFocusPos = min;
+        else {
+            if (max > min){
+                focusCaptureRange = max - min;
+                currentFocusPos = min;
+            }
+            else {
+                focusCaptureRange = min - max;
+                currentFocusPos = max;
+            }
+            focusStep = focusCaptureRange /PICSTOTAKE;
+
         }
+        Log.d(TAG,"onStartTakePicture() min:" + min + " max:" + max +" focusCaptureRange:" + focusCaptureRange + " focusStep:" + focusStep + " currentFocusPos:" + currentFocusPos);
     }
 
     @Override
     protected void prepareCaptureBuilder(int captureNum) {
-        cameraHolder.captureSessionHandler.SetCaptureParameter(CaptureRequest.LENS_FOCUS_DISTANCE, (float) currentFocusPos / 10);
+        cameraUiWrapper.captureSessionHandler.SetCaptureParameter(CaptureRequest.LENS_FOCUS_DISTANCE, manualFocus.getFloatValue(currentFocusPos));
+        cameraUiWrapper.captureSessionHandler.SetPreviewParameter(CaptureRequest.LENS_FOCUS_DISTANCE, manualFocus.getFloatValue(currentFocusPos),true);
+        Log.d(TAG,"prepareCaptureBuilder() focusCaptureRange:" + focusCaptureRange + " focusStep:" + focusStep + " currentFocusPos:" + currentFocusPos + " :" +  manualFocus.getFloatValue(currentFocusPos) + " :" + manualFocus.getStringValue(currentFocusPos));
         currentFocusPos +=focusStep;
-        if (currentFocusPos > focuslength+min)
-            currentFocusPos = focuslength+min;
+        if (currentFocusPos > parameterHandler.get(SettingKeys.M_Focus).getStringValues().length)
+            currentFocusPos = parameterHandler.get(SettingKeys.M_Focus).getStringValues().length-1;
+        cameraUiWrapper.captureSessionHandler.capture();
     }
 
 
     @Override
     protected void finishCapture() {
         super.finishCapture();
-        if (imagecount == PICSTOTAKE)
-            fireOnWorkFinish(savedFiles);
     }
 
-    @Override
-    public void internalFireOnWorkDone(File file)
-    {
-        savedFiles[currentFileCount++] = file;
-    }
 }

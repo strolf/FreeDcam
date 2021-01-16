@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical" android:layout_width="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <FrameLayout
@@ -11,13 +11,12 @@
         android:id="@+id/frameLayout">
 
         <freed.cam.ui.themesample.cameraui.RotatingSeekbar
+            android:id="@+id/seekbar"
             android:layout_width="@dimen/cameraui_manual_fragment_rotatingseekbar_width"
             android:layout_height="fill_parent"
-            android:id="@+id/seekbar"
-            android:layout_alignParentLeft="true"
-            android:layout_alignParentTop="true"
-            android:layout_marginTop="@dimen/cameraui_manual_fragment_rotatingseekbar_margin_right"
-            android:layout_marginBottom="@dimen/cameraui_manual_fragment_rotatingseekbar_margin_right" />
+            android:layout_marginBottom="@dimen/cameraui_manual_fragment_rotatingseekbar_margin_right"
+            android:layout_marginRight="5dp"
+            android:layout_marginTop="@dimen/cameraui_manual_fragment_rotatingseekbar_margin_right" />
     </FrameLayout>
 
     <HorizontalScrollView
@@ -29,10 +28,8 @@
 
         <LinearLayout
             android:orientation="horizontal"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="@dimen/cameraui_manualbuttonholder_height"
-            android:layout_alignParentBottom="true"
-            android:layout_centerHorizontal="true"
             android:layout_marginBottom="20dp"
             android:layout_marginRight="70dp"
             android:id="@+id/manualItemsHolder">
@@ -48,5 +45,18 @@
         android:layout_toLeftOf="@+id/frameLayout"
         android:layout_toStartOf="@+id/frameLayout"
         android:layout_marginRight="5dp" />
+
+    <view
+        android:id="@+id/curveView"
+        class="freed.views.CurveViewControl"
+        layout_width="match_parent"
+        android:layout_width="@dimen/curveViewWidth"
+        android:layout_height="@dimen/curveViewHeight"
+        android:layout_above="@+id/horizontalScrollView2"
+        android:layout_centerInParent="false"
+        android:layout_marginRight="5dp"
+        android:layout_toLeftOf="@+id/frameLayout"
+        android:layout_toStartOf="@+id/frameLayout"
+        android:background="@color/uiSettingsBackground" />
 
 </RelativeLayout>

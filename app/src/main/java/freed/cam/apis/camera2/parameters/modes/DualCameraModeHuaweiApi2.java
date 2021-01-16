@@ -7,7 +7,8 @@ import android.os.Build;
 import java.util.Map;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.StringUtils;
 
 /**
@@ -20,28 +21,31 @@ public class DualCameraModeHuaweiApi2 extends BaseModeApi2
     protected CaptureRequest.Key<Byte> parameterKey;
 
 
-    public DualCameraModeHuaweiApi2(CameraWrapperInterface cameraUiWrapper, AppSettingsManager.SettingMode settingMode, CaptureRequest.Key<Byte> parameterKey) {
-        super(cameraUiWrapper, settingMode, null);
+    public DualCameraModeHuaweiApi2(CameraWrapperInterface cameraUiWrapper, SettingKeys.Key key, CaptureRequest.Key<Byte> parameterKey) {
+        super(cameraUiWrapper, key, null);
         this.parameterKey = parameterKey;
-        isSupported = settingMode.isSupported();
-        captureSessionHandler.SetParameterRepeating(parameterKey,(byte)0);
-        if (isSupported)
+        captureSessionHandler.SetParameterRepeating(parameterKey,(byte)0,true);
+        if (settingMode.isSupported()) {
             parameterValues = StringUtils.StringArrayToIntHashmap(settingMode.getValues());
+            setViewState(ViewState.Visible);
+        }
         else settingMode = null;
     }
 
     @Override
-    public boolean IsSupported()
+    public void setValue(String valueToSet, boolean setToCamera)
     {
-        return isSupported;
-    }
+        super.setValue(valueToSet,setToCamera);
+        if (SettingsManager.get(SettingKeys.secondarySensorSize).isSupported())
+        {
+            if (setToCamera) {
+                cameraUiWrapper.stopPreviewAsync();
+                cameraUiWrapper.startPreviewAsync();
+            }
+        }
 
-    @Override
-    public void SetValue(String valueToSet, boolean setToCamera)
-    {
         int toset = parameterValues.get(valueToSet);
-        captureSessionHandler.SetParameterRepeating(parameterKey, Byte.valueOf((byte)toset));
-
+        captureSessionHandler.SetParameterRepeating(parameterKey, Byte.valueOf((byte) toset), setToCamera);
         fireStringValueChanged(valueToSet);
 
     }
@@ -54,7 +58,7 @@ public class DualCameraModeHuaweiApi2 extends BaseModeApi2
         Byte b = captureSessionHandler.getPreviewParameter(parameterKey);
         if (b == null)
         {
-            fireIsSupportedChanged(false);
+            setViewState(ViewState.Hidden);
             return "";
         }
         int i = b.intValue();

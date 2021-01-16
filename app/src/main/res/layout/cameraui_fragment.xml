@@ -17,12 +17,10 @@
         android:id="@+id/horHolder"></LinearLayout>
 
 
-
     <freed.cam.ui.themesample.cameraui.FocusSelector
         android:layout_width="70dp"
         android:id="@+id/imageView_Crosshair"
         android:visibility="gone"
-        android:layout_height="70dp" />
         android:layout_height="70dp" />
 
     <ImageView
@@ -175,27 +173,31 @@
     </LinearLayout>
 
     <LinearLayout
-        android:orientation="vertical"
+        android:id="@+id/userMessageHolder"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@color/menuBackgColor"
         android:layout_centerInParent="true"
-        android:id="@+id/userMessageHolder">
+        android:layout_marginLeft="@dimen/cameraui_settings_margin_left"
+        android:layout_marginRight="@dimen/cameraui_shuttericon_size"
+        android:background="@color/menuBackgColor"
+        android:orientation="vertical"
+        android:visibility="gone">
 
         <TextView
+            android:id="@+id/textView_usermessage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceSmall"
-            android:id="@+id/textView_usermessage"
             android:textColor="@color/menuTextColor" />
     </LinearLayout>
 
     <LinearLayout
-        android:orientation="vertical"
+        android:id="@+id/left_ui_holder"
         android:layout_width="@dimen/cameraui_settingschild_width"
         android:layout_height="wrap_content"
-        android:id="@+id/left_ui_holder"
-        android:gravity="center_vertical">
+        android:layout_centerVertical="true"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
 
 
     </LinearLayout>
@@ -250,39 +252,45 @@
             android:layout_alignParentBottom="true"
             android:gravity="center|center_horizontal|bottom">
 
+            <freed.cam.ui.themesample.cameraui.childs.UiSettingsChildSelfTimer
+                android:layout_width="@dimen/ui_settings_item_height"
+                android:layout_height="@dimen/ui_settings_item_height"
+                android:id="@+id/selftimer"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/selftimer"
+                android:layout_marginTop="18dp"/>
+
+
             <freed.cam.ui.themesample.cameraui.childs.UiSettingsChildAeLock
                 android:layout_width="@dimen/ui_settings_item_width"
                 android:layout_height="@dimen/ui_settings_item_height"
                 android:id="@+id/ae_lock"
-                android:layout_alignParentLeft="false"
-                android:layout_alignParentTop="true"
                 android:layout_gravity="center_horizontal"
                 android:background="@drawable/quck_set_ae_lock"
-                android:layout_marginTop="8dp"/>
+                android:layout_marginTop="5dp"/>
 
             <freed.cam.ui.themesample.cameraui.childs.UiSettingsChildCameraSwitch
                 android:layout_width="@dimen/ui_settings_item_width"
                 android:layout_height="@dimen/ui_settings_item_height"
                 android:id="@+id/camera_switch"
-                android:layout_alignParentLeft="false"
-                android:layout_alignParentTop="true"
                 android:layout_gravity="center_horizontal"
                 android:background="@drawable/quck_set_cswitch"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginTop="5dp"
+                android:layout_marginBottom="5dp" />
 
         </LinearLayout>
 
     </RelativeLayout>
 
     <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:id="@+id/manualModesHolder"
-        android:foregroundGravity="center_horizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
         android:layout_marginLeft="@dimen/cameraui_manualbuttonholder_margin_left"
-        android:layout_marginRight="@dimen/cameraui_manualbuttonholder_margin_right"></FrameLayout>
+        android:layout_marginRight="@dimen/cameraui_manualbuttonholder_margin_right"
+        android:foregroundGravity="center_horizontal"></FrameLayout>
 
 
     <FrameLayout

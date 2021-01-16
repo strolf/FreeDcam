@@ -25,86 +25,79 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.MeteringRectangle;
 import android.os.Build.VERSION_CODES;
-import android.view.MotionEvent;
 
 import com.troop.freedcam.R;
 
+import org.greenrobot.eventbus.Subscribe;
+
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.AbstractFocusHandler;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.basecamera.parameters.ParameterEvents;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.EventBusLifeCycle;
+import freed.cam.events.ValueChangedEvent;
+import freed.settings.SettingKeys;
 import freed.utils.Log;
 
 /**
  * Created by troop on 12.12.2014.
  */
 @TargetApi(VERSION_CODES.LOLLIPOP)
-public class FocusHandler extends AbstractFocusHandler
+public class FocusHandler extends AbstractFocusHandler implements EventBusLifeCycle
 {
     private int mState;
     private boolean focusenabled;
 
     private final String TAG = FocusHandler.class.getSimpleName();
 
+
+
     public FocusHandler(CameraWrapperInterface cameraUiWrapper)
     {
         super(cameraUiWrapper);
     }
 
-    public ParameterEvents focusModeListner = new ParameterEvents() {
-        @Override
-        public void onIsSupportedChanged(boolean value) {
 
-        }
-
-        @Override
-        public void onIsSetSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIntValueChanged(int current) {
-
-        }
-
-        @Override
-        public void onValuesChanged(String[] values) {
-
-        }
-
-        @Override
-        public void onStringValueChanged(String val) {
-            if (val.contains("Continous")|| val.equals(cameraUiWrapper.getContext().getString(R.string.off)))
-            {
+    @Subscribe
+    public void onFocusModeValueChanged(ValueChangedEvent<String> valueChangedEvent)
+    {
+        if (valueChangedEvent.type != String.class || cameraUiWrapper == null)
+            return;
+        if (valueChangedEvent.key == SettingKeys.FocusMode) {
+            Log.d(TAG, "onFocusModeValueChanged");
+            String val = valueChangedEvent.newValue;
+            if (val.contains("Continous") || val.equals(FreedApplication.getStringFromRessources(R.string.off))) {
                 focusenabled = false;
                 if (focusEvent != null)
                     focusEvent.TouchToFocusSupported(false);
-            }
-            else
-            {
+            } else {
                 focusenabled = true;
                 if (focusEvent != null)
                     focusEvent.TouchToFocusSupported(true);
             }
         }
-    };
-
-    @Override
-    public void StartFocus() {
     }
 
     @Override
     public void StartTouchToFocus(int x, int y, int width, int height)
     {
+       super.StartTouchToFocus(x,y,width,height);
+        if (focusEvent != null)
+            focusEvent.FocusStarted(x,y);
+    }
+
+    @Override
+    protected void startTouchFocus(AbstractFocusHandler.FocusCoordinates viewCoordinates) {
         //logFocusRect(rect);
-        Log.d(TAG, "Width:" + width + "Height" + height + " X: " + x + "Y : "+y);
+        Log.d(TAG, "Width:" + viewCoordinates.width + "Height" + viewCoordinates.height + " X: " + viewCoordinates.x + "Y : "+viewCoordinates.y);
         if (!focusenabled)
             return;
 
-        Rect m =  ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
-        logRect(m);
-        int areasize = (m.width() /8) /2;
-        float xf = (float)x * m.width() / width ;
-        float yf = (float)y * m.height() / height;
+        Rect sensorSize =  ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+        logRect(sensorSize);
+        int areasize = (sensorSize.width() /10);
+        float xf = (float)viewCoordinates.x * sensorSize.width() / viewCoordinates.width;
+        float yf = (float)viewCoordinates.y * sensorSize.height() /  viewCoordinates.height;
         int x_c = (int)xf; //(int)((float)x/width * m.right);
         int y_C = (int) yf; //(int)((float)y/height * m.bottom);
         int left = x_c - areasize;
@@ -118,63 +111,27 @@ public class FocusHandler extends AbstractFocusHandler
             targetFocusRect.left = 0;
             targetFocusRect.right = areasize*2;
         }
-        if (targetFocusRect.right > m.right) {
-            targetFocusRect.right = m.width();
-            targetFocusRect.left = m.width() -areasize*2;
+        if (targetFocusRect.right > sensorSize.right) {
+            targetFocusRect.right = sensorSize.width();
+            targetFocusRect.left = sensorSize.width() -areasize*2;
         }
-        if (targetFocusRect.top < m.top) {
+        if (targetFocusRect.top < sensorSize.top) {
             targetFocusRect.top = 0;
             targetFocusRect.bottom = areasize*2;
 
         }
-        if (targetFocusRect.bottom > m.bottom)
+        if (targetFocusRect.bottom > sensorSize.bottom)
         {
-            targetFocusRect.bottom = m.height();
-            targetFocusRect.top = m.height() - areasize*2;
+            targetFocusRect.bottom = sensorSize.height();
+            targetFocusRect.top = sensorSize.height() - areasize*2;
         }
 
         logFocusRect(targetFocusRect);
         MeteringRectangle rectangle = new MeteringRectangle(targetFocusRect.left,targetFocusRect.top,targetFocusRect.right,targetFocusRect.bottom, 1000);
         MeteringRectangle[] mre = { rectangle};
-        ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).SetFocusArea(CaptureRequest.CONTROL_AF_REGIONS, mre);
-        if (focusEvent != null)
-            focusEvent.FocusStarted(x,y);
+        ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetFocusArea(CaptureRequest.CONTROL_AF_REGIONS, mre);
     }
 
-    public ParameterEvents aeModeListner = new ParameterEvents() {
-        @Override
-        public void onIsSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIsSetSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIntValueChanged(int current) {
-
-        }
-
-        @Override
-        public void onValuesChanged(String[] values) {
-
-        }
-
-        @Override
-        public void onStringValueChanged(String val) {
-            if (val.equals("off"))
-            {
-                if (focusEvent != null)
-                    focusEvent.AEMeteringSupported(false);
-            }
-            else {
-                if (focusEvent != null)
-                    focusEvent.AEMeteringSupported(true);
-            }
-        }
-    };
 
     @Override
     public void SetMeteringAreas(int x, int y, int width, int height)
@@ -201,8 +158,8 @@ public class FocusHandler extends AbstractFocusHandler
 
         MeteringRectangle rectangle = new MeteringRectangle(targetFocusRect.left,targetFocusRect.top,targetFocusRect.right,targetFocusRect.bottom, 1000);
         MeteringRectangle[] mre = { rectangle};
-        ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AE_REGIONS, mre);
-        ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER,CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
+        ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AE_REGIONS, mre);
+        ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER,CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
     }
 
     @Override
@@ -211,8 +168,17 @@ public class FocusHandler extends AbstractFocusHandler
     }
 
     @Override
-    public void SetMotionEvent(MotionEvent event) {
-
+    public boolean isTouchSupported() {
+        return focusenabled;
     }
 
+    @Override
+    public void startListning() {
+        EventBusHelper.register(this);
+    }
+
+    @Override
+    public void stopListning() {
+        EventBusHelper.unregister(this);
+    }
 }

@@ -20,22 +20,34 @@
 package freed.cam.apis.basecamera.parameters;
 
 import android.graphics.Rect;
-import android.os.Handler;
-import android.os.Looper;
+import android.text.TextUtils;
 
+import java.util.HashMap;
+
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.apis.basecamera.parameters.modes.ClippingMode;
+import freed.cam.apis.basecamera.parameters.modes.EnableRenderScriptMode;
+import freed.cam.apis.basecamera.parameters.modes.FocusPeakColorMode;
+import freed.cam.apis.basecamera.parameters.modes.FocusPeakMode;
+import freed.cam.apis.basecamera.parameters.modes.GpsParameter;
 import freed.cam.apis.basecamera.parameters.modes.GuideList;
+import freed.cam.apis.basecamera.parameters.modes.HistogramParameter;
 import freed.cam.apis.basecamera.parameters.modes.Horizont;
 import freed.cam.apis.basecamera.parameters.modes.IntervalDurationParameter;
 import freed.cam.apis.basecamera.parameters.modes.IntervalShutterSleepParameter;
-import freed.cam.apis.basecamera.parameters.modes.LocationParameter;
 import freed.cam.apis.basecamera.parameters.modes.NightOverlayParameter;
+import freed.cam.apis.basecamera.parameters.modes.ParameterExternalShutter;
 import freed.cam.apis.basecamera.parameters.modes.SDModeParameter;
-import freed.utils.AppSettingsManager;
+import freed.cam.events.EventBusLifeCycle;
+import freed.renderscript.RenderScriptManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
+import freed.settings.mode.SettingMode;
 import freed.utils.Log;
 
-/**
- * Created by troop on 09.12.2014.
+/*
+  Created by troop on 09.12.2014.
  */
 
 /**
@@ -45,154 +57,61 @@ import freed.utils.Log;
  */
 public abstract class AbstractParameterHandler
 {
-    final String TAG = AbstractParameterHandler.class.getSimpleName();
-    /**
-     * Holds the UI/Main Thread
-     */
-    protected Handler uiHandler;
+    private final String TAG = AbstractParameterHandler.class.getSimpleName();
 
-    protected AppSettingsManager appSettingsManager;
+    private final HashMap<SettingKeys.Key, ParameterInterface> parameterHashMap = new HashMap<>();
 
     protected CameraWrapperInterface cameraUiWrapper;
 
-    public ParameterInterface ManualBrightness;
-    public ParameterInterface ManualSharpness;
-    public ParameterInterface ManualContrast;
-    public ParameterInterface ManualSaturation;
-    public ParameterInterface ManualExposure;
-    public ParameterInterface ManualConvergence;
-    public ParameterInterface ManualFocus;
-    public ParameterInterface ManualShutter;
-    public ParameterInterface ManualFNumber;
-    public ParameterInterface Burst;
-    public ParameterInterface CCT;
-    public ParameterInterface FX;
-    public ParameterInterface ManualIso;
-    public ParameterInterface Zoom;
-    public ParameterInterface ProgramShift;
-    public ParameterInterface PreviewZoom;
 
-
-    public ParameterInterface ColorMode;
-    public ParameterInterface ExposureMode;
-    public ParameterInterface AE_PriorityMode;
-    public ParameterInterface FlashMode;
-    public ParameterInterface IsoMode;
-    public ParameterInterface AntiBandingMode;
-    public ParameterInterface WhiteBalanceMode;
-    public ParameterInterface PictureSize;
-    public ParameterInterface PictureFormat;
-    public ParameterInterface HDRMode;
-    public ParameterInterface JpegQuality;
-    //defcomg was here
-    public ParameterInterface GuideList;
-    //done
-    public ParameterInterface ImagePostProcessing;
-    public ParameterInterface PreviewSize;
-    public ParameterInterface PreviewFPS;
-    public ParameterInterface PreviewFormat;
-    public ParameterInterface PreviewFpsRange;
-    public ParameterInterface SceneMode;
-    public ParameterInterface FocusMode;
-    public ParameterInterface RedEye;
-    public ParameterInterface LensShade;
-    public ParameterInterface ZSL;
-    public ParameterInterface SceneDetect;
-    public ParameterInterface Denoise;
-    //5/26/2017
-    public ParameterInterface PDAF;
-    public ParameterInterface TNR;
-    public ParameterInterface TNR_V;
-    public ParameterInterface RDI;
-    public ParameterInterface TruePotrait;
-    public ParameterInterface ReFocus;
-    public ParameterInterface SeeMore;
-    public ParameterInterface OptiZoom;
-    public ParameterInterface ChromaFlash;
-
-
-    public ParameterInterface DigitalImageStabilization;
-    public ParameterInterface VideoStabilization;
-    public ParameterInterface MemoryColorEnhancement;
-    public ParameterInterface NightMode;
-    public ParameterInterface NonZslManualMode;
-    public ParameterInterface AE_Bracket;
-    public ParameterInterface ExposureLock;
-    public ParameterInterface CDS_Mode;
-
-    public ParameterInterface HTCVideoMode;
-    public ParameterInterface HTCVideoModeHSR;
-    public ParameterInterface VideoProfiles;
-    public ParameterInterface VideoSize;
-    public ParameterInterface VideoHDR;
-    public ParameterInterface VideoHighFramerateVideo;
-    public ParameterInterface LensFilter;
-    public ParameterInterface Horizont;
-    public ParameterInterface ae_TargetFPS;
-
-    //SonyApi
-    public ParameterInterface ContShootMode;
-    public ParameterInterface ContShootModeSpeed;
-    public ParameterInterface ObjectTracking;
-    public ParameterInterface PostViewSize;
-    public ParameterInterface Focuspeak;
-    public ParameterInterface Module;
-    public ParameterInterface ZoomSetting;
-    public ParameterInterface NightOverlay;
-
-    //huawei
-    public ParameterInterface dualPrimaryCameraMode;
-
-    private boolean isDngActive;
-    public boolean IsDngActive(){ return isDngActive; }
-    public void SetDngActive(boolean active) {
-        isDngActive = active;}
-
-
-
-    //camera2 modes
-    public ParameterInterface EdgeMode;
-    public ParameterInterface ColorCorrectionMode;
-    public ParameterInterface HotPixelMode;
-    public ParameterInterface ToneMapMode;
-    public ParameterInterface black;
-    public ParameterInterface shadows;
-    public ParameterInterface midtones;
-    public ParameterInterface highlights;
-    public ParameterInterface white;
-    public ParameterInterface ControlMode;
-
-    public ParameterInterface oismode;
-
-    public ParameterInterface SdSaveLocation;
-
-    public ParameterInterface locationParameter;
-
-    public boolean IntervalCapture;
-    public boolean IntervalCaptureFocusSet;
-
-    public ParameterInterface IntervalDuration;
-    public ParameterInterface IntervalShutterSleep;
-
-    public ParameterInterface opcode;
-    public ParameterInterface bayerformat;
-    public ParameterInterface matrixChooser;
-    public ParameterInterface tonemapChooser;
-    public ParameterInterface scalePreview;
-
-    public AbstractParameterHandler(CameraWrapperInterface cameraUiWrapper) {
+    protected AbstractParameterHandler(CameraWrapperInterface cameraUiWrapper) {
         this.cameraUiWrapper = cameraUiWrapper;
-        uiHandler = new Handler(Looper.getMainLooper());
-        this.appSettingsManager = cameraUiWrapper.getAppSettingsManager();
+        add(SettingKeys.GuideList, new GuideList());
+        add(SettingKeys.LOCATION_MODE, new GpsParameter(cameraUiWrapper));
+        add(SettingKeys.INTERVAL_DURATION, new IntervalDurationParameter(cameraUiWrapper));
+        add(SettingKeys.EXTERNAL_SHUTTER, new ParameterExternalShutter());
+        add(SettingKeys.INTERVAL_SHUTTER_SLEEP, new IntervalShutterSleepParameter(cameraUiWrapper));
+        add(SettingKeys.HorizontLvl, new Horizont());
+        add(SettingKeys.SD_SAVE_LOCATION, new SDModeParameter());
+        add(SettingKeys.NightOverlay, new NightOverlayParameter(cameraUiWrapper));
+        if (RenderScriptManager.isSupported() && cameraUiWrapper.getFocusPeakProcessor() != null) {
+            add(SettingKeys.EnableRenderScript, new EnableRenderScriptMode(cameraUiWrapper));
+            add(SettingKeys.FOCUSPEAK_COLOR, new FocusPeakColorMode(cameraUiWrapper.getFocusPeakProcessor(), SettingKeys.FOCUSPEAK_COLOR));
+            add(SettingKeys.Focuspeak, new FocusPeakMode(cameraUiWrapper));
+            add(SettingKeys.HISTOGRAM, new HistogramParameter(cameraUiWrapper));
+            add(SettingKeys.CLIPPING, new ClippingMode(cameraUiWrapper));
+        }
+    }
 
-        GuideList = new GuideList(appSettingsManager);
-        locationParameter = new LocationParameter(cameraUiWrapper);
-        IntervalDuration = new IntervalDurationParameter(cameraUiWrapper);
-        IntervalShutterSleep = new IntervalShutterSleepParameter(cameraUiWrapper);
-        Horizont = new Horizont();
-        SdSaveLocation = new SDModeParameter(appSettingsManager);
-        NightOverlay = new NightOverlayParameter(cameraUiWrapper);
+    public void add(SettingKeys.Key parameters, ParameterInterface parameterInterface)
+    {
+        Log.d(TAG, "add "+ FreedApplication.getStringFromRessources(parameters.getRessourcesStringID()));
+        parameterHashMap.put(parameters, parameterInterface);
+    }
 
+    public void unregisterListners()
+    {
+        for (EventBusLifeCycle life : parameterHashMap.values()) {
+            life.stopListning();
+        }
+    }
+
+    public void registerListners()
+    {
+        for (EventBusLifeCycle life : parameterHashMap.values()) {
+            try {
+                life.startListning();
+            }
+            catch(org.greenrobot.eventbus.EventBusException ex)
+            {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    public ParameterInterface get(SettingKeys.Key parameters)
+    {
+        return parameterHashMap.get(parameters);
     }
 
     public abstract void SetFocusAREA(Rect focusAreas);
@@ -207,129 +126,161 @@ public abstract class AbstractParameterHandler
 
     public void SetAppSettingsToParameters()
     {
-        setMode(locationParameter, AppSettingsManager.SETTING_LOCATION);
-        setAppSettingsToCamera(ColorMode,appSettingsManager.colorMode);
-        setAppSettingsToCamera(ExposureMode,appSettingsManager.exposureMode);
-        setAppSettingsToCamera(FlashMode,appSettingsManager.flashMode);
-        setAppSettingsToCamera(IsoMode,appSettingsManager.isoMode);
-        setAppSettingsToCamera(AntiBandingMode,appSettingsManager.antiBandingMode);
-        setAppSettingsToCamera(WhiteBalanceMode,appSettingsManager.whiteBalanceMode);
-        setAppSettingsToCamera(PictureSize,appSettingsManager.pictureSize);
-        setAppSettingsToCamera(PictureFormat,appSettingsManager.pictureFormat);
-        setAppSettingsToCamera(bayerformat,appSettingsManager.rawPictureFormat);
-        setAppSettingsToCamera(oismode,appSettingsManager.opticalImageStabilisation);
-        setAppSettingsToCamera(JpegQuality,appSettingsManager.jpegQuality);
-        setAppSettingsToCamera(GuideList, appSettingsManager.guide);
-        setAppSettingsToCamera(ImagePostProcessing,appSettingsManager.imagePostProcessing);
-        setAppSettingsToCamera(SceneMode,appSettingsManager.sceneMode);
-        setAppSettingsToCamera(FocusMode,appSettingsManager.focusMode);
-        setAppSettingsToCamera(RedEye,appSettingsManager.redEyeMode);
-        setAppSettingsToCamera(LensShade,appSettingsManager.lenshade);
-        setAppSettingsToCamera(ZSL,appSettingsManager.zeroshutterlag);
-        setAppSettingsToCamera(SceneDetect,appSettingsManager.sceneDetectMode);
-        setAppSettingsToCamera(Denoise,appSettingsManager.denoiseMode);
-        setAppSettingsToCamera(DigitalImageStabilization,appSettingsManager.digitalImageStabilisationMode);
-        setAppSettingsToCamera(MemoryColorEnhancement,appSettingsManager.memoryColorEnhancement);
-        setMode(NightMode, AppSettingsManager.NIGHTMODE);
-        setAppSettingsToCamera(NonZslManualMode, appSettingsManager.nonZslManualMode);
+        setGlobalAppSettingsToCamera(SettingKeys.LOCATION_MODE,false);
+        setAppSettingsToCamera(SettingKeys.ColorMode,false);
+        setAppSettingsToCamera(SettingKeys.FlashMode,false);
+        setAppSettingsToCamera(SettingKeys.IsoMode,false);
+        setAppSettingsToCamera(SettingKeys.AntiBandingMode,false);
+        setAppSettingsToCamera(SettingKeys.WhiteBalanceMode,false);
+        setAppSettingsToCamera(SettingKeys.PictureSize,false);
+        setAppSettingsToCamera(SettingKeys.RawSize,false);
+        setAppSettingsToCamera(SettingKeys.PictureFormat,false);
+        setAppSettingsToCamera(SettingKeys.BAYERFORMAT,false);
+        setAppSettingsToCamera(SettingKeys.OIS_MODE,false);
+        setAppSettingsToCamera(SettingKeys.JpegQuality,false);
+        setGlobalAppSettingsToCamera(SettingKeys.GuideList,false);
+        setAppSettingsToCamera(SettingKeys.ImagePostProcessing,false);
+        setAppSettingsToCamera(SettingKeys.SceneMode,false);
+        setAppSettingsToCamera(SettingKeys.FocusMode,false);
+        setAppSettingsToCamera(SettingKeys.RedEye,false);
+        setAppSettingsToCamera(SettingKeys.LensShade,false);
+        setAppSettingsToCamera(SettingKeys.ZSL,false);
+        setAppSettingsToCamera(SettingKeys.SceneDetect,false);
+        setAppSettingsToCamera(SettingKeys.Denoise,false);
+        setAppSettingsToCamera(SettingKeys.DigitalImageStabilization,false);
+        setAppSettingsToCamera(SettingKeys.MemoryColorEnhancement,false);
+        setAppSettingsToCamera(SettingKeys.NightMode,false);
+        setAppSettingsToCamera(SettingKeys.NonZslManualMode,false);
 
-        setAppSettingsToCamera(VideoProfiles, appSettingsManager.videoProfile);
-        setAppSettingsToCamera(VideoHDR, appSettingsManager.videoHDR);
-        setAppSettingsToCamera(VideoSize, appSettingsManager.videoSize);
-        setAppSettingsToCamera(VideoStabilization,appSettingsManager.videoStabilisation);
-        setAppSettingsToCamera(VideoHighFramerateVideo,appSettingsManager.videoHFR);
-        setAppSettingsToCamera(WhiteBalanceMode,appSettingsManager.whiteBalanceMode);
-        setAppSettingsToCamera(ColorCorrectionMode, appSettingsManager.colorCorrectionMode);
-        setAppSettingsToCamera(EdgeMode, appSettingsManager.edgeMode);
-        setAppSettingsToCamera(EdgeMode,appSettingsManager.edgeMode);
-        setAppSettingsToCamera(HotPixelMode, appSettingsManager.hotpixelMode);
-        setAppSettingsToCamera(ToneMapMode, appSettingsManager.toneMapMode);
-        setAppSettingsToCamera(ControlMode, appSettingsManager.controlMode);
-        setAppSettingsToCamera(IntervalDuration,appSettingsManager.intervalDuration);
-        setAppSettingsToCamera(IntervalShutterSleep, appSettingsManager.interval);
-        setMode(Horizont, AppSettingsManager.SETTING_HORIZONT);
+        setAppSettingsToCamera(SettingKeys.VideoProfiles,false);
+        setAppSettingsToCamera(SettingKeys.VideoHDR,false);
+        setAppSettingsToCamera(SettingKeys.VideoSize,false);
+        setAppSettingsToCamera(SettingKeys.VideoStabilization,false);
+        setAppSettingsToCamera(SettingKeys.VideoHighFramerate,false);
+        setAppSettingsToCamera(SettingKeys.WhiteBalanceMode,false);
+        setAppSettingsToCamera(SettingKeys.COLOR_CORRECTION_MODE,false);
+        setAppSettingsToCamera(SettingKeys.EDGE_MODE,false);
+        setAppSettingsToCamera(SettingKeys.HOT_PIXEL_MODE,false);
+        setAppSettingsToCamera(SettingKeys.TONE_MAP_MODE,false);
+        setAppSettingsToCamera(SettingKeys.CONTROL_MODE,false);
+        setAppSettingsToCamera(SettingKeys.INTERVAL_DURATION,false);
+        setAppSettingsToCamera(SettingKeys.INTERVAL_SHUTTER_SLEEP,false);
+        setGlobalAppSettingsToCamera(SettingKeys.HorizontLvl,false);
 
-        setAppSettingsToCamera(HDRMode, appSettingsManager.hdrMode);
+        setAppSettingsToCamera(SettingKeys.HDRMode,false);
 
-        setAppSettingsToCamera(matrixChooser, appSettingsManager.matrixset);
-        setAppSettingsToCamera(dualPrimaryCameraMode, appSettingsManager.dualPrimaryCameraMode);
-        setAppSettingsToCamera(RDI, appSettingsManager.rawdumpinterface);
-        setAppSettingsToCamera(ae_TargetFPS, appSettingsManager.ae_TagetFPS);
+        setAppSettingsToCamera(SettingKeys.MATRIX_SET,false);
+        setAppSettingsToCamera(SettingKeys.dualPrimaryCameraMode,false);
+        setAppSettingsToCamera(SettingKeys.RDI,false);
+        setAppSettingsToCamera(SettingKeys.Ae_TargetFPS,false);
+        setAppSettingsToCamera(SettingKeys.secondarySensorSize, false);
 
-        //setManualMode(ManualContrast, AppSettingsManager.MCONTRAST);
-        //setManualMode(ManualConvergence,AppSettingsManager.MCONVERGENCE);
-        //setManualMode(ManualExposure, AppSettingsManager.MEXPOSURE);
-        //setManualMode(ManualFocus, AppSettingsManager.MF);
-        //setManualMode(ManualSharpness,AppSettingsManager.MSHARPNESS);
-        //setManualMode(ManualShutter, AppSettingsManager.MSHUTTERSPEED);
-        //setManualMode(ManualBrightness, AppSettingsManager.MBRIGHTNESS);
-        //setManualMode(ManualIso, AppSettingsManager.MISO);
-        //setManualMode(ManualSaturation, AppSettingsManager.MSATURATION);
-        //setManualMode(CCT,AppSettingsManager.MWB);
-
-
+        setAppSettingsToCamera(SettingKeys.ExposureMode,true);
+        if (RenderScriptManager.isSupported() && cameraUiWrapper.getFocusPeakProcessor() != null) {
+            setAppSettingsToCamera(SettingKeys.FOCUSPEAK_COLOR, true);
+            setAppSettingsToCamera(SettingKeys.HISTOGRAM, true);
+            setAppSettingsToCamera(SettingKeys.CLIPPING, true);
+        }
     }
 
-    protected void SetParameters()
+    public void setManualSettingsToParameters()
+    {
+        setManualMode(SettingKeys.M_Contrast,false);
+        setManualMode(SettingKeys.M_3D_Convergence,false);
+        setManualMode(SettingKeys.M_Focus,false);
+        setManualMode(SettingKeys.M_Sharpness,false);
+        setManualMode(SettingKeys.M_ExposureTime,false);
+        setManualMode(SettingKeys.M_Brightness,false);
+        setManualMode(SettingKeys.M_ManualIso,false);
+        setManualMode(SettingKeys.M_Saturation,false);
+        setManualMode(SettingKeys.M_Whitebalance,false);
+        setManualMode(SettingKeys.M_ExposureCompensation,true);
+    }
+
+    public void SetParameters()
     {}
 
-    protected void setMode(ParameterInterface parameter, String settings_key)
+    private void setAppSettingsToCamera(SettingKeys.Key parametertolook, boolean setToCamera)
     {
-        if (parameter != null && parameter.IsSupported() && settings_key != null && !settings_key.equals(""))
-        {
-            Log.d(TAG, parameter.getClass().getSimpleName() + " load settings: " + settings_key);
-            if (appSettingsManager.getApiString(settings_key).equals("") || appSettingsManager.getApiString(settings_key) == null)
+        if (SettingsManager.get(parametertolook) instanceof SettingMode){
+            ParameterInterface parameter = get(parametertolook);
+            SettingMode settingMode = (SettingMode) SettingsManager.get(parametertolook);
+            if (settingMode != null && settingMode.isSupported() && parameter != null && parameter.GetStringValue() != null)
             {
-                String tmp = parameter.GetStringValue();
-                Log.d(TAG, settings_key + " is empty, set default from camera : " +tmp);
-                appSettingsManager.setApiString(settings_key, tmp);
-            }
-            else
-            {
-                String tmp = appSettingsManager.getApiString(settings_key);
-                Log.d(TAG, "Found AppSetting: "+settings_key+" set to: " + tmp);
-                parameter.SetValue(tmp, false);
+                if (TextUtils.isEmpty(settingMode.get()))
+                    return;
+                String toset = settingMode.get();
+                Log.d(TAG,"set " + FreedApplication.getStringFromRessources(parametertolook.getRessourcesStringID())+ " to :" + toset);
+                if (TextUtils.isEmpty(toset) || toset.equals("none"))
+                    settingMode.set(parameter.GetStringValue());
+                else
+                    parameter.SetValue(toset,setToCamera);
+                parameter.fireStringValueChanged(toset);
             }
         }
     }
 
-    protected void setAppSettingsToCamera(ParameterInterface parameter, AppSettingsManager.SettingMode settingMode)
+    private void setGlobalAppSettingsToCamera(SettingKeys.Key parametertolook, boolean setToCamera)
     {
-        if (settingMode.isSupported() && parameter != null && parameter.GetStringValue() != null)
-        {
-            String toset = settingMode.get();
-            Log.d(TAG,"set to :" + toset);
-            if (toset.equals("") || toset.equals("none"))
-                settingMode.set(parameter.GetStringValue());
-            else
-                parameter.SetValue(toset,false);
-            parameter.fireStringValueChanged(toset);
+        if (SettingsManager.getGlobal(parametertolook) instanceof SettingMode){
+            ParameterInterface parameter = get(parametertolook);
+            SettingMode settingMode = (SettingMode) SettingsManager.getGlobal(parametertolook);
+            if (settingMode != null && settingMode.isSupported() && parameter != null && parameter.GetStringValue() != null)
+            {
+                if (TextUtils.isEmpty(settingMode.get()))
+                    return;
+                String toset = settingMode.get();
+                Log.d(TAG,"set " + FreedApplication.getStringFromRessources(parametertolook.getRessourcesStringID())+ " to :" + toset);
+                if (TextUtils.isEmpty(toset) || toset.equals("none"))
+                    settingMode.set(parameter.GetStringValue());
+                else
+                    parameter.SetValue(toset,setToCamera);
+                parameter.fireStringValueChanged(toset);
+            }
         }
     }
 
-    protected void setManualMode(ParameterInterface parameter, String settings_key)
+    private void setApiAppSettingsToCamera(SettingKeys.Key parametertolook, boolean setToCamera)
     {
-        if (parameter != null && parameter.IsSupported() && settings_key != null && !settings_key.equals(""))
-        {
-            Log.d(TAG, parameter.getClass().getSimpleName() + " load settings: " + settings_key);
-            if (appSettingsManager.getApiString(settings_key).equals("") || appSettingsManager.getApiString(settings_key).equals(null))
+        if (SettingsManager.getApi(parametertolook) instanceof SettingMode){
+            ParameterInterface parameter = get(parametertolook);
+            SettingMode settingMode = (SettingMode) SettingsManager.getApi(parametertolook);
+            if (settingMode != null && settingMode.isSupported() && parameter != null && parameter.GetStringValue() != null)
             {
-                String tmp = parameter.GetValue()+"";
-                Log.d(TAG, settings_key + " is empty, set default from camera : " +tmp);
-                appSettingsManager.setApiString(settings_key, tmp);
+                if (TextUtils.isEmpty(settingMode.get()))
+                    return;
+                String toset = settingMode.get();
+                Log.d(TAG,"set " + FreedApplication.getStringFromRessources(parametertolook.getRessourcesStringID())+ " to :" + toset);
+                if (TextUtils.isEmpty(toset) || toset.equals("none"))
+                    settingMode.set(parameter.GetStringValue());
+                else
+                    parameter.SetValue(toset,setToCamera);
+                parameter.fireStringValueChanged(toset);
             }
-            else
-            {
-                try {
-                    int tmp = Integer.parseInt(appSettingsManager.getApiString(settings_key));
-                    Log.d(TAG, "Found AppSetting: "+settings_key+" set to: " + tmp);
-                    parameter.SetValue(tmp);
-                }
-                catch (NumberFormatException ex)
-                {
-                    Log.WriteEx(ex);
-                }
+        }
+    }
 
+    private void setManualMode(SettingKeys.Key parametertolook, boolean setToCamera)
+    {
+        if (SettingsManager.get(parametertolook) instanceof SettingMode) {
+            ParameterInterface parameter = get(parametertolook);
+            SettingMode settingMode = (SettingMode) SettingsManager.get(parametertolook);
+            if (parameter != null && settingMode != null && settingMode.isSupported()) {
+                Log.d(TAG, parameter.getClass().getSimpleName());
+                if (TextUtils.isEmpty(settingMode.get()) || settingMode.get() == null) {
+                    String tmp = parameter.GetValue() + "";
+                    Log.d(TAG, "settingmode is empty: " + FreedApplication.getStringFromRessources(parametertolook.getRessourcesStringID()) + " get from parameter: " + tmp);
+                    settingMode.set(tmp);
+                } else {
+                    try {
+                        int tmp = Integer.parseInt(settingMode.get());
+                        Log.d(TAG, "settingmode : " +  FreedApplication.getStringFromRessources(parametertolook.getRessourcesStringID()) + " set from settings: " + tmp);
+                        parameter.SetValue(tmp, setToCamera);
+                    } catch (NumberFormatException ex) {
+                        Log.WriteEx(ex);
+                    }
+
+                }
             }
         }
     }

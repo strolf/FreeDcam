@@ -21,14 +21,15 @@ package freed.cam.apis.camera1;
 
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.basecamera.modules.IntervalModule;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract;
-import freed.cam.apis.camera1.CameraHolder.Frameworks;
 import freed.cam.apis.camera1.modules.BracketModule;
+import freed.cam.apis.camera1.modules.IntervalModuleCamera1;
 import freed.cam.apis.camera1.modules.PictureModule;
 import freed.cam.apis.camera1.modules.PictureModuleMTK;
 import freed.cam.apis.camera1.modules.VideoModule;
 import freed.cam.apis.camera1.modules.VideoModuleG3;
+import freed.settings.Frameworks;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -49,24 +50,22 @@ public class ModuleHandler extends ModuleHandlerAbstract
         //init the Modules DeviceDepending
         //splitting modules make the code foreach device cleaner
         String TAG = "cam.ModuleHandler";
-        if (((CameraHolder) cameraUiWrapper.getCameraHolder()).DeviceFrameWork == Frameworks.MTK)
+        if (SettingsManager.getInstance().getFrameWork() == Frameworks.MTK)
         {
             Log.d(TAG, "load mtk picmodule");
             PictureModuleMTK thl5000 = new PictureModuleMTK(cameraUiWrapper,mBackgroundHandler,mainHandler);
             moduleList.put(thl5000.ModuleName(), thl5000);
-            IntervalModule intervalModule = new IntervalModule(thl5000, cameraUiWrapper,mBackgroundHandler,mainHandler);
-            moduleList.put(intervalModule.ModuleName(), intervalModule);
         }
         else//else //use default pictureModule
         {
             Log.d(TAG, "load default picmodule");
             PictureModule pictureModule = new PictureModule(cameraUiWrapper,mBackgroundHandler,mainHandler);
             moduleList.put(pictureModule.ModuleName(), pictureModule);
-            IntervalModule intervalModule = new IntervalModule(pictureModule, cameraUiWrapper,mBackgroundHandler,mainHandler);
+            IntervalModuleCamera1 intervalModule = new IntervalModuleCamera1(cameraUiWrapper,mBackgroundHandler,mainHandler);
             moduleList.put(intervalModule.ModuleName(), intervalModule);
         }
 
-        if (((CameraHolder) cameraUiWrapper.getCameraHolder()).DeviceFrameWork == Frameworks.LG)
+        if (SettingsManager.getInstance().getFrameWork() == Frameworks.LG)
         {
             Log.d(TAG, "load lg videomodule");
             VideoModuleG3 videoModuleG3 = new VideoModuleG3(cameraUiWrapper,mBackgroundHandler,mainHandler);
@@ -80,7 +79,7 @@ public class ModuleHandler extends ModuleHandlerAbstract
         }
 
         Log.d(TAG, "load hdr module");
-        if (((CameraHolder) cameraUiWrapper.getCameraHolder()).DeviceFrameWork != Frameworks.MTK)
+        if (SettingsManager.getInstance().getFrameWork() != Frameworks.MTK)
         {
             BracketModule bracketModule = new BracketModule(cameraUiWrapper,mBackgroundHandler,mainHandler);
             moduleList.put(bracketModule.ModuleName(), bracketModule);

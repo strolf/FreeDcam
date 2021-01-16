@@ -22,7 +22,8 @@ package freed.cam.apis.sonyremote.modules;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.Handler;
-import android.support.v4.provider.DocumentFile;
+
+import androidx.documentfile.provider.DocumentFile;
 
 import com.troop.freedcam.R;
 
@@ -34,11 +35,17 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.modules.ModuleAbstract;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract.CaptureStates;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.sonyremote.CameraHolderSony;
 import freed.cam.apis.sonyremote.parameters.ParameterHandler;
+import freed.file.holder.BaseHolder;
+import freed.file.holder.FileHolder;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -51,7 +58,7 @@ public class PictureModuleSony extends ModuleAbstract implements I_PictureCallba
 
     public PictureModuleSony(CameraWrapperInterface cameraUiWrapper, Handler mBackgroundHandler, Handler mainHandler) {
         super(cameraUiWrapper,mBackgroundHandler,mainHandler);
-        name = cameraUiWrapper.getResString(R.string.module_picture);
+        name = FreedApplication.getStringFromRessources(R.string.module_picture);
         cameraHolder = (CameraHolderSony)cameraUiWrapper.getCameraHolder();
 
 
@@ -65,8 +72,19 @@ public class PictureModuleSony extends ModuleAbstract implements I_PictureCallba
     @Override
     public void DoWork()
     {
-        if (cameraUiWrapper.getParameterHandler().ContShootMode != null && cameraUiWrapper.getParameterHandler().ContShootMode.IsSupported()) {
-            String shootmode = ((ParameterHandler) cameraUiWrapper.getParameterHandler()).ContShootMode.GetStringValue();
+        if (((ParameterHandler)cameraUiWrapper.getParameterHandler()).canStartBulbCapture())
+        {
+            changeCaptureState(CaptureStates.image_capture_start);
+            cameraHolder.startBulbCapture(this);
+        }
+        else if (((ParameterHandler)cameraUiWrapper.getParameterHandler()).canStopBulbCapture())
+        {
+            changeCaptureState(CaptureStates.image_capture_stop);
+            cameraHolder.stopBulbCapture(this);
+        }
+        else if (cameraUiWrapper.getParameterHandler().get(SettingKeys.ContShootMode) != null
+                && cameraUiWrapper.getParameterHandler().get(SettingKeys.ContShootMode).getViewState() == AbstractParameter.ViewState.Visible) {
+            String shootmode = cameraUiWrapper.getParameterHandler().get(SettingKeys.ContShootMode).GetStringValue();
             if (!isWorking && shootmode.equals("Single"))
             {
                 changeCaptureState(CaptureStates.image_capture_start);
@@ -98,8 +116,10 @@ public class PictureModuleSony extends ModuleAbstract implements I_PictureCallba
         Log.d(TAG, "InitModule");
         ((ParameterHandler)cameraUiWrapper.getParameterHandler()).CameraStatusListner = this;
 
-        if(cameraUiWrapper.getParameterHandler().ContShootMode != null) {
-            String shootmode = ((ParameterHandler) cameraUiWrapper.getParameterHandler()).ContShootMode.GetStringValue();
+        if(cameraUiWrapper.getParameterHandler().get(SettingKeys.ContShootMode) != null) {
+            String shootmode = cameraUiWrapper.getParameterHandler().get(SettingKeys.ContShootMode).GetStringValue();
+            if (shootmode == null)
+                return;
             if (shootmode.equals("Single"))
                 changeCaptureState(CaptureStates.image_capture_stop);
             else if (shootmode.equals("Spd Priority Cont.") || shootmode.equals("Continuous"))
@@ -137,7 +157,7 @@ public class PictureModuleSony extends ModuleAbstract implements I_PictureCallba
     @Override
     public void onPictureTaken(URL url)
     {
-        File file = new File(cameraUiWrapper.getActivityInterface().getStorageHandler().getNewFilePath(appSettingsManager.GetWriteExternal(), ".jpg"));
+        File file = new File(cameraUiWrapper.getActivityInterface().getFileListController().getNewFilePath(SettingsManager.getInstance().GetWriteExternal(), ".jpg"));
         try {
             file.createNewFile();
         } catch (IOException ex) {
@@ -147,13 +167,13 @@ public class PictureModuleSony extends ModuleAbstract implements I_PictureCallba
         OutputStream output = null;
         try {
             inputStream = new BufferedInputStream(url.openStream());
-            if (VERSION.SDK_INT <= VERSION_CODES.LOLLIPOP || VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP && !appSettingsManager.GetWriteExternal())
+            if (VERSION.SDK_INT <= VERSION_CODES.LOLLIPOP || VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP && !SettingsManager.getInstance().GetWriteExternal())
                 output = new FileOutputStream(file);
             else
             {
-                DocumentFile df = cameraUiWrapper.getActivityInterface().getFreeDcamDocumentFolder();
+                DocumentFile df = cameraUiWrapper.getActivityInterface().getFileListController().getFreeDcamDocumentFolder();
                 DocumentFile wr = df.createFile("image/jpeg", file.getName());
-                output = cameraUiWrapper.getContext().getContentResolver().openOutputStream(wr.getUri());
+                output = FreedApplication.getContext().getContentResolver().openOutputStream(wr.getUri());
             }
             int bufferSize = 1024;
             byte[] buffer = new byte[bufferSize];
@@ -182,8 +202,7 @@ public class PictureModuleSony extends ModuleAbstract implements I_PictureCallba
             }
         }
 
-        cameraUiWrapper.getActivityInterface().ScanFile(file);
-        fireOnWorkFinish(file);
+        fireOnWorkFinish(new FileHolder(file,SettingsManager.getInstance().GetWriteExternal()));
 
     }
 
@@ -213,7 +232,7 @@ public class PictureModuleSony extends ModuleAbstract implements I_PictureCallba
     }
 
     @Override
-    public void internalFireOnWorkDone(File file) {
+    public void internalFireOnWorkDone(BaseHolder file) {
 
     }
 }

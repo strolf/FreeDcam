@@ -21,11 +21,12 @@ package freed.viewer.dngconvert;
 
 import android.R.id;
 import android.os.Bundle;
-import android.support.v4.app.FragmentTransaction;
+
+import androidx.fragment.app.FragmentTransaction;
 
 import freed.ActivityAbstract;
-import freed.utils.LocationHandler;
-import freed.viewer.holder.FileHolder;
+import freed.file.FileListController;
+import freed.utils.LocationManager;
 
 /**
  * Created by troop on 22.12.2015.
@@ -33,8 +34,11 @@ import freed.viewer.holder.FileHolder;
 public class DngConvertingActivity extends ActivityAbstract
 {
     private final String TAG = DngConvertingActivity.class.getSimpleName();
+
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        fileListController = new FileListController(getApplicationContext());
         if (getSupportFragmentManager().findFragmentByTag(TAG) == null) {
             FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
             ft.add(id.content, new DngConvertingFragment(), TAG);
@@ -43,18 +47,14 @@ public class DngConvertingActivity extends ActivityAbstract
 
     }
 
-    @Override
-    public void WorkHasFinished(FileHolder fileHolder) {
-
-    }
 
     @Override
-    public void WorkHasFinished(FileHolder[] fileHolder) {
-
-    }
-
-    @Override
-    public LocationHandler getLocationHandler() {
+    public LocationManager getLocationManager() {
         return null;
+    }
+
+    @Override
+    protected void setContentToView() {
+
     }
 }

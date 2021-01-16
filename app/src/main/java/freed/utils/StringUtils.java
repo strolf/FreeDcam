@@ -20,7 +20,12 @@
 package freed.utils;
 
 import android.os.Environment;
+import android.text.TextUtils;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,12 +34,6 @@ import java.util.Map;
  */
 public class StringUtils
 {
-
-
-    public static String VoLP = "Vol+";
-    public static String VoLM = "Vol-";
-    public static String Hook = "Hook";
-
     private StringUtils(){}
 
     public static String GetExternalSDCARD() throws NullPointerException
@@ -55,7 +54,6 @@ public class StringUtils
     public static String freedcamFolder = "/DCIM/FreeDcam/";
     public static String DCIMFolder = "/DCIM/";
 
-    public static String GetFreeDcamConfigFolder = GetInternalSDCARD()+ freedcamFolder +"config/";
 
     public class FileEnding
     {
@@ -115,7 +113,7 @@ public class StringUtils
         int i = 0;
         for (Map.Entry set:hashMap.entrySet())
         {
-            t[i++] = set.getKey()+";"+set.getValue();
+            t[i++] = set.getKey()+","+set.getValue();
         }
         return t;
     }
@@ -126,8 +124,8 @@ public class StringUtils
             HashMap<String, Integer> out = new HashMap<>();
             for (String e : t)
             {
-                if (!e.equals("")) {
-                    String[] en = e.split(";");
+                if (!TextUtils.isEmpty(e)) {
+                    String[] en = e.split(",");
                     out.put(en[0], Integer.parseInt(en[1]));
                 }
             }
@@ -148,8 +146,10 @@ public class StringUtils
         if (t > 1000) {
             int meter = t / 1000;
             int cm = t - meter*1000;
-            if (meter > 100)
+            if (meter > 1000)
                 ret = "∞";
+            else if (meter > 3)
+                ret = meter +"m";
             else
                 ret = meter + "." + cm +"m";
         }
@@ -170,6 +170,17 @@ public class StringUtils
                 return true;
         }
         return false;
+    }
+
+    public static String getString(InputStream inputStream) throws IOException {
+        BufferedInputStream bis = new BufferedInputStream(inputStream);
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        int result = bis.read();
+        while(result != -1) {
+            buf.write((byte) result);
+            result = bis.read();
+        }
+        return buf.toString();
     }
 
 }

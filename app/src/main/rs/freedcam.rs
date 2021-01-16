@@ -1,15 +1,18 @@
 #pragma version(1)
-    #pragma rs java_package_name(freed.utils)
+    #pragma rs java_package_name(freed.renderscript)
     #pragma rs_fp_relaxed
 
 rs_allocation gCurrentFrame;
 rs_allocation gLastFrame;
+rs_allocation medianStackMIN;
+rs_allocation medianStackMAX;
+
 int Width;
 int Height;
 bool yuvinput;
-
 //BRIGHTNESS
 float brightness;
+
 
 uchar4 __attribute__((kernel)) processBrightness(uint32_t x, uint32_t y) {
     float4 f4 = rsUnpackColor8888(rsGetElementAt_uchar4(gCurrentFrame, x,y));
@@ -51,157 +54,7 @@ uchar4 __attribute__((kernel)) processContrast(uint32_t x, uint32_t y)
             return o;
 }
 
-//FOCUSPEAK
-
-uchar4 __attribute__((kernel)) focuspeakcam2(uint32_t x, uint32_t y) {
-    uchar4 curPixel;
-    curPixel.r = rsGetElementAtYuv_uchar_Y(gCurrentFrame, x, y);
-    curPixel.g = rsGetElementAtYuv_uchar_U(gCurrentFrame, x, y);
-    curPixel.b = rsGetElementAtYuv_uchar_V(gCurrentFrame, x, y);
-    int dx = x + ((x == 0) ? 1 : -1);
-    int sum = 0;
-    int tmp;
-    tmp = rsGetElementAtYuv_uchar_Y(gCurrentFrame, dx, y) - curPixel.r;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_U(gCurrentFrame, dx, y) - curPixel.g;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_V(gCurrentFrame, dx, y) - curPixel.b;
-    sum += tmp * tmp;
-    int dy = y + ((y == 0) ? 1 : -1);
-    tmp = rsGetElementAtYuv_uchar_Y(gCurrentFrame, x, dy) - curPixel.r;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_U(gCurrentFrame, x, dy) - curPixel.g;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_V(gCurrentFrame, x, dy) - curPixel.b;
-    sum += tmp * tmp;
-    sum >>= 9;
-    sum *= sum * sum;
-    curPixel.a = 255;
-    uchar4 mergedPixel = curPixel;
-    int4 rgb;
-    rgb.r = mergedPixel.r +
-            mergedPixel.b * 1436 / 1024 - 179 + sum;
-    rgb.g = mergedPixel.r -
-            mergedPixel.g * 46549 / 131072 + 44 -
-            mergedPixel.b * 93604 / 131072 + 91 + sum;
-    rgb.b = mergedPixel.r +
-            mergedPixel.g * 1814 / 1024 - 227;
-    rgb.a = 255;
-    // Write out merged HDR result
-    rgb.r = ( rgb.r > 255 )? 255 : (( rgb.r < 0 )? 0 : rgb.r);
-    rgb.g = ( rgb.g > 255 )? 255 : (( rgb.g < 0 )? 0 : rgb.g);
-    rgb.b = ( rgb.b > 255 )? 255 : (( rgb.b < 0 )? 0 : rgb.b);
-    uchar4 out = convert_uchar4(rgb);
-    return out;
-}
-
-uchar4 __attribute__((kernel)) focuspeakcam1(uint32_t x, uint32_t y) {
-    uchar4 curPixel;
-    curPixel.r = rsGetElementAtYuv_uchar_Y(gCurrentFrame, x, y);
-    curPixel.g = rsGetElementAtYuv_uchar_U(gCurrentFrame, x, y);
-    curPixel.b = rsGetElementAtYuv_uchar_V(gCurrentFrame, x, y);
-    int dx = x + ((x == 0) ? 1 : -1);
-    int sum = 0;
-    int tmp;
-    tmp = rsGetElementAtYuv_uchar_Y(gCurrentFrame, dx, y) - curPixel.r;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_U(gCurrentFrame, dx, y) - curPixel.g;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_V(gCurrentFrame, dx, y) - curPixel.b;
-    sum += tmp * tmp;
-    int dy = y + ((y == 0) ? 1 : -1);
-    tmp = rsGetElementAtYuv_uchar_Y(gCurrentFrame, x, dy) - curPixel.r;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_U(gCurrentFrame, x, dy) - curPixel.g;
-    sum += tmp * tmp;
-    tmp = rsGetElementAtYuv_uchar_V(gCurrentFrame, x, dy) - curPixel.b;
-    sum += tmp * tmp;
-    sum >>= 9;
-    sum *= sum * sum;
-    curPixel.a = 255;
-    uchar4 mergedPixel = curPixel;
-    int4 rgb;
-    rgb.r = mergedPixel.r +
-            mergedPixel.b * 1436 / 1024 - 179 + sum;
-    rgb.g = mergedPixel.r -
-            mergedPixel.g * 46549 / 131072 + 44 -
-            mergedPixel.b * 93604 / 131072 + 91 + sum;
-    rgb.b = mergedPixel.r +
-            mergedPixel.g * 1814 / 1024 - 227;
-    rgb.a = 255;
-    // Write out merged HDR result
-    int factor = 2;
-    if(rgb.r >=255 -factor && rgb.g >= 255 -factor && rgb.b >= 255 -factor)
-    {
-        rgb.r =255; rgb.g = 0;  rgb.b = 0;
-    }
-    if(rgb.r <=0 +factor && rgb.g <= 0 +factor && rgb.b <= 0 +factor)
-    {
-        rgb.r =0; rgb.g = 0;  rgb.b = 255;
-    }
-    rgb.r = ( rgb.r > 255 )? 255 : (( rgb.r < 0 )? 0 : rgb.r);
-    rgb.g = ( rgb.g > 255 )? 255 : (( rgb.g < 0 )? 0 : rgb.g);
-    rgb.b = ( rgb.b > 255 )? 255 : (( rgb.b < 0 )? 0 : rgb.b);
-
-    uchar4 out = convert_uchar4(rgb);
-
-    return out;
-}
-
-uchar4 __attribute__((kernel)) focuspeaksony(uint32_t x, uint32_t y) {
-    uchar4 curPixel;
-    curPixel = rsGetElementAt_uchar4(gCurrentFrame, x, y);
-    //rsDebug("CurPixel", curPixel);
-
-    int dx = x + ((x == 0) ? 1 : -1);
-    //rsDebug("dx", dx);
-    int sum = 0;
-    uchar4 tmpPix = rsGetElementAt_uchar4(gCurrentFrame, dx, y);
-    int tmp;
-    tmp = tmpPix.r - curPixel.r;
-    sum += tmp * tmp;
-    tmp = tmpPix.g - curPixel.g;
-    sum += tmp * tmp;
-    tmp = tmpPix.b - curPixel.b;
-    sum += tmp * tmp;
-
-    int dy = y + ((y == 0) ? 1 : -1);
-    tmpPix = rsGetElementAt_uchar4(gCurrentFrame, x, dy);
-    tmp = tmpPix.r - curPixel.r;
-    sum += tmp * tmp;
-    tmp = tmpPix.g - curPixel.g;
-    sum += tmp * tmp;
-    tmp = tmpPix.b - curPixel.b;
-    sum += tmp * tmp;
-
-    sum >>= 9;
-    sum *= sum * sum;
-    int4 rgb;
-    uchar4 mergedPixel = curPixel;
-    //rsDebug("curPixel", curPixel);
-    rgb.r = mergedPixel.r  + sum;
-    rgb.g = mergedPixel.g + sum;
-    rgb.b = mergedPixel.b + sum;
-    rgb.a = 255;
-    rgb.r = ( rgb.r > 255 )? 255 : (( rgb.r < 0 )? 0 : rgb.r);
-    rgb.g = ( rgb.g > 255 )? 255 : (( rgb.g < 0 )? 0 : rgb.g);
-    rgb.b = ( rgb.b > 255 )? 255 : (( rgb.b < 0 )? 0 : rgb.b);
-
-    //rsDebug("rgb", rgb);
-    uchar4 out = convert_uchar4(rgb);
-    return out;
-}
-
-
 //IMAGE STACK
-
-typedef struct MinMaxPixel
-{
-    uchar4 min;
-    uchar4 max;
-} MinMaxPixel_t;
-
-MinMaxPixel_t *medianMinMaxPixel;
 
 float4 __attribute__((kernel))getRgb(uint32_t x, uint32_t y)
 {
@@ -429,18 +282,61 @@ uchar4 __attribute__((kernel)) stackimage_lightenV(uint32_t x, uint32_t y)
 
 uchar4 __attribute__((kernel)) stackimage_median(uint32_t x, uint32_t y)
 {
-    uchar4 curPixel, lastPixel;
-    curPixel = getRgb_uchar4(x, y);
-    struct MinMaxPixel t = medianMinMaxPixel[x+y];
-    if(curPixel.r < t.min.r && curPixel.g < t.min.g && curPixel.b < t.min.b)
-        t.min = curPixel;
-    else if(curPixel.r > t.max.r && curPixel.g > t.max.g && curPixel.b > t.max.b)
-        t.max = curPixel;
-    uchar4 rgb = t.max - t.min;
-    rgb.r = ( rgb.r > 255 )? 255 : (( rgb.r < 0 )? 0 : rgb.r);
-    rgb.g = ( rgb.g > 255 )? 255 : (( rgb.g < 0 )? 0 : rgb.g);
-    rgb.b = ( rgb.b > 255 )? 255 : (( rgb.b < 0 )? 0 : rgb.b);
-    return rgb;
+    uchar4 curPixel;
+    curPixel = rsGetElementAt_uchar4(gCurrentFrame,x, y);
+    uchar4 minPix = rsGetElementAt_uchar4(medianStackMIN,x, y);
+    uchar4 maxPix = rsGetElementAt_uchar4(medianStackMAX,x, y);
+
+    if(minPix.r == 0 && minPix.g == 0 && minPix.b == 0
+    && maxPix.r == 0 && maxPix.g == 0 && maxPix.b == 0)
+    {
+        if(x ==50 && y == 50)
+            rsDebug("min max empty set default: ",curPixel);
+        rsSetElementAt_uchar4(medianStackMIN, curPixel, x, y);
+        rsSetElementAt_uchar4(medianStackMAX, curPixel, x, y);
+    }
+    else if(maxPix.r < curPixel.r && maxPix.g < curPixel.g && maxPix.b < curPixel.b)
+    {
+        if(x ==50 && y == 50)
+            rsDebug("max < curpixel",maxPix);
+        rsSetElementAt_uchar4(medianStackMAX, curPixel, x, y);
+    }
+    else if(minPix.r > curPixel.r && minPix.g > curPixel.g && minPix.b > curPixel.b)
+    {
+        if(x ==50 && y == 50)
+            rsDebug("min > curpixel",curPixel);
+        rsSetElementAt_uchar4(medianStackMIN, curPixel, x, y);
+    }
+
+
+    return curPixel;
+}
+
+uchar4 __attribute__((kernel)) process_median(uint32_t x, uint32_t y)
+{
+    uchar4 curPixel;
+    uchar4 minPix = rsGetElementAt_uchar4(medianStackMIN,x, y);
+    if(x ==50 && y == 50)
+        rsDebug("minpix= ",minPix);
+    uchar4 maxPix = rsGetElementAt_uchar4(medianStackMAX,x, y);
+    if(x ==50 && y == 50)
+        rsDebug("maxpix= ",maxPix);
+    int p = (minPix.r+maxPix.r)/2;
+    if(x ==50 && y == 50)
+        rsDebug("calced r = ", p);
+    curPixel.r = p;
+    p = (minPix.g+maxPix.g)/2;
+    if(x ==50 && y == 50)
+        rsDebug("calced g = ", p);
+    curPixel.g = p;
+    p = (minPix.b+maxPix.b)/2;
+    if(x ==50 && y == 50)
+        rsDebug("calced b = ", p);
+    curPixel.b = p;
+    curPixel.a = 255;
+    if(x ==50 && y == 50)
+        rsDebug("finalpix", curPixel);
+    return curPixel;
 }
 
 

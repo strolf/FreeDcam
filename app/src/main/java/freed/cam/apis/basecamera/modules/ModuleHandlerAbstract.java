@@ -19,20 +19,18 @@
 
 package freed.cam.apis.basecamera.modules;
 
-import android.os.Build;
 import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Looper;
-import android.support.annotation.Nullable;
 
 import com.troop.freedcam.R;
 
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashMap;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.utils.AppSettingsManager;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.ModuleHasChangedEvent;
+import freed.utils.BackgroundHandlerThread;
 import freed.utils.Log;
 
 /**
@@ -52,75 +50,27 @@ public abstract class ModuleHandlerAbstract implements ModuleHandlerInterface
         continouse_capture_work_stop,
         cont_capture_stop_while_working,
         cont_capture_stop_while_notworking,
+        selftimerstart,
+        selftimerstop
     }
-
-    public interface CaptureStateChanged
-    {
-        void onCaptureStateChanged(CaptureStates captureStates);
-    }
-
-    private final ArrayList<CaptureStateChanged> onCaptureStateChangedListners;
 
     private final String TAG = ModuleHandlerAbstract.class.getSimpleName();
     public AbstractMap<String, ModuleInterface> moduleList;
     protected ModuleInterface currentModule;
     protected CameraWrapperInterface cameraUiWrapper;
 
-    protected CaptureStateChanged workerListner;
+    private BackgroundHandlerThread backgroundHandlerThread;
 
-    //holds all listner for the modulechanged event
-    private final ArrayList<ModuleChangedEvent> moduleChangedListner;
-    //holds all listner for recorstatechanged
-    private final ArrayList<I_RecorderStateChanged> RecorderStateListners;
-    private HandlerThread mBackgroundThread;
     protected Handler mBackgroundHandler;
     protected Handler mainHandler;
-
-
-
-    protected AppSettingsManager appSettingsManager;
 
     public ModuleHandlerAbstract(CameraWrapperInterface cameraUiWrapper)
     {
         this.cameraUiWrapper = cameraUiWrapper;
         moduleList = new HashMap<>();
-        moduleChangedListner = new ArrayList<>();
-        RecorderStateListners = new ArrayList<>();
-        this.appSettingsManager = cameraUiWrapper.getAppSettingsManager();
-        onCaptureStateChangedListners = new ArrayList<>();
-        mainHandler = new Handler(Looper.getMainLooper());
-        startBackgroundThread();
-
-        workerListner = new CaptureStateChanged() {
-            @Override
-            public void onCaptureStateChanged(final CaptureStates captureStates)
-            {
-                for (int i = 0; i < onCaptureStateChangedListners.size(); i++)
-                {
-
-                    if (onCaptureStateChangedListners.get(i) == null) {
-                        onCaptureStateChangedListners.remove(i);
-                        i--;
-                    }
-                    else
-                    {
-                        final int pos = i;
-                        mainHandler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                onCaptureStateChangedListners.get(pos).onCaptureStateChanged(captureStates);
-                            }
-                        });
-
-                    }
-                }
-            }
-        };
-    }
-
-    public void changeCaptureState(CaptureStates states)
-    {
-        workerListner.onCaptureStateChanged(states);
+        backgroundHandlerThread = new BackgroundHandlerThread(TAG);
+        backgroundHandlerThread.create();
+        mBackgroundHandler = new Handler(backgroundHandlerThread.getThread().getLooper());
     }
 
     /**
@@ -131,13 +81,15 @@ public abstract class ModuleHandlerAbstract implements ModuleHandlerInterface
     public void setModule(String name) {
         if (currentModule !=null) {
             currentModule.DestroyModule();
-            currentModule.SetCaptureStateChangedListner(null);
+            //currentModule.SetCaptureStateChangedListner(null);
             currentModule = null;
         }
         currentModule = moduleList.get(name);
+        if(currentModule == null)
+            currentModule = moduleList.get(FreedApplication.getStringFromRessources(R.string.module_picture));
         currentModule.InitModule();
         ModuleHasChanged(currentModule.ModuleName());
-        currentModule.SetCaptureStateChangedListner(workerListner);
+        //currentModule.SetCaptureStateChangedListner(workerListner);
         Log.d(TAG, "Set Module to " + name);
     }
 
@@ -145,11 +97,11 @@ public abstract class ModuleHandlerAbstract implements ModuleHandlerInterface
     public String getCurrentModuleName() {
         if (currentModule != null)
             return currentModule.ModuleName();
-        else return cameraUiWrapper.getResString(R.string.module_picture);
+        else return FreedApplication.getStringFromRessources(R.string.module_picture);
     }
 
     @Override
-    public @Nullable ModuleInterface getCurrentModule() {
+    public ModuleInterface getCurrentModule() {
         if (currentModule != null)
             return currentModule;
         return null;
@@ -166,27 +118,9 @@ public abstract class ModuleHandlerAbstract implements ModuleHandlerInterface
     }
 
     @Override
-    public void setWorkListner(CaptureStateChanged workerListner)
-    {
-        if (!onCaptureStateChangedListners.contains(workerListner))
-            onCaptureStateChangedListners.add(workerListner);
-    }
-
-
-    public void CLEARWORKERLISTNER()
-    {
-        if (onCaptureStateChangedListners != null)
-            onCaptureStateChangedListners.clear();
-    }
-
-    /**
-     * Add a listner for Moudlechanged events
-     * @param listner the listner for the event
-     */
-    public  void addListner(ModuleChangedEvent listner)
-    {
-        if (!moduleChangedListner.contains(listner))
-            moduleChangedListner.add(listner);
+    public void SetIsLowStorage(Boolean x) {
+        if( currentModule != null )
+            currentModule.IsLowStorage(x);
     }
 
     /**
@@ -195,78 +129,9 @@ public abstract class ModuleHandlerAbstract implements ModuleHandlerInterface
      */
     public void ModuleHasChanged(final String module)
     {
-        if (moduleChangedListner.size() == 0)
-            return;
-        for (int i = 0; i < moduleChangedListner.size(); i++)
-        {
-            if (moduleChangedListner.get(i) == null) {
-                moduleChangedListner.remove(i);
-                i--;
-            }
-            else
-            {
-                final int toget = i;
-                mainHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (moduleChangedListner.size() > 0)
-                            moduleChangedListner.get(toget).onModuleChanged(module);
-                    }
-                });
-
-            }
-        }
+        EventBusHelper.post(new ModuleHasChangedEvent(module));
     }
 
 
-    public void AddRecoderChangedListner(I_RecorderStateChanged recorderStateChanged)
-    {
-        RecorderStateListners.add(recorderStateChanged);
-    }
-
-    public void onRecorderstateChanged(int state)
-    {
-        for (I_RecorderStateChanged lisn : RecorderStateListners)
-            lisn.RecordingStateChanged(state);
-    }
-
-    //clears all listner this happens when the camera gets destroyed
-    public void CLEAR()
-    {
-        moduleChangedListner.clear();
-        RecorderStateListners.clear();
-        stopBackgroundThread();
-    }
-
-    /**
-     * Starts a background thread and its {@link Handler}.
-     */
-    private void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread("CameraBackground");
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-    }
-
-    /**
-     * Stops the background thread and its {@link Handler}.
-     */
-    private void stopBackgroundThread()
-    {
-        Log.d(TAG,"stopBackgroundThread");
-        if(mBackgroundThread == null)
-            return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-            mBackgroundThread.quitSafely();
-        }
-        else
-            mBackgroundThread.quit();
-        try {
-            mBackgroundThread.join();
-            mBackgroundThread = null;
-            mBackgroundHandler = null;
-        } catch (InterruptedException e) {
-            Log.WriteEx(e);
-        }
-    }
 
 }

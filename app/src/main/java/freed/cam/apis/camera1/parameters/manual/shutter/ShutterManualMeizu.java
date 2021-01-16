@@ -23,15 +23,18 @@ import android.hardware.Camera.Parameters;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.basecamera.parameters.manual.AbstractManualShutter;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
  * Created by GeorgeKiarie on 6/3/2016.
  */
-public class ShutterManualMeizu extends AbstractManualShutter
+public class ShutterManualMeizu extends AbstractParameter
 {
     private final String TAG = ShutterManualMeizu.class.getSimpleName();
     private Parameters parameters;
@@ -41,25 +44,13 @@ public class ShutterManualMeizu extends AbstractManualShutter
      * @param cameraUiWrapper
      */
     public ShutterManualMeizu(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(cameraUiWrapper);
+        super(cameraUiWrapper,SettingKeys.M_ExposureTime);
         this.parameters = parameters;
-        stringvalues = cameraUiWrapper.getAppSettingsManager().manualExposureTime.getValues();
-
-        isSupported = true;
+        setViewState(ViewState.Visible);
     }
 
     @Override
-    public boolean IsVisible() {
-        return IsSupported();
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return true;
-    }
-
-    @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
         currentInt = valueToSet;
         String shutterstring = stringvalues[currentInt];
@@ -68,7 +59,7 @@ public class ShutterManualMeizu extends AbstractManualShutter
             Double a = Double.parseDouble(split[0]) / Double.parseDouble(split[1]);
             shutterstring = "" + a*1000000;
         }
-        if(!stringvalues[currentInt].equals(cameraUiWrapper.getResString(R.string.auto_)))
+        if(!stringvalues[currentInt].equals(FreedApplication.getStringFromRessources(R.string.auto_)))
         {
             try {
                 shutterstring = setExposureTimeToParameter(shutterstring);
@@ -89,10 +80,10 @@ public class ShutterManualMeizu extends AbstractManualShutter
 
     private String setExposureTimeToParameter(String shutterstring)
     {
-        parameters.set(cameraUiWrapper.getAppSettingsManager().manualExposureTime.getKEY(), shutterstring);
+        parameters.set(SettingsManager.get(SettingKeys.M_ExposureTime).getCamera1ParameterKEY(), shutterstring);
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
-        cameraUiWrapper.stopPreview();
-        cameraUiWrapper.startPreview();
+        cameraUiWrapper.stopPreviewAsync();
+        cameraUiWrapper.startPreviewAsync();
 
         return shutterstring;
     }

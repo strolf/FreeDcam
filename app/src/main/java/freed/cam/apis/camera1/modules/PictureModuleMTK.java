@@ -28,11 +28,15 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract.CaptureStates;
+import freed.cam.apis.basecamera.parameters.ParameterInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.cam.ui.themesample.handler.UserMessageHandler;
 import freed.jni.RawToDng;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 import freed.utils.StringUtils;
 import freed.utils.StringUtils.FileEnding;
@@ -52,23 +56,21 @@ public class PictureModuleMTK extends PictureModule
     @Override
     public void DoWork()
     {
-        mBackgroundHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (cameraUiWrapper.getAppSettingsManager().getApiString(AppSettingsManager.SETTING_LOCATION).equals(cameraUiWrapper.getResString(R.string.on_)))
-                    cameraHolder.SetLocation(cameraUiWrapper.getActivityInterface().getLocationHandler().getCurrentLocation());
+        mBackgroundHandler.post(() -> {
+            if (SettingsManager.getGlobal(SettingKeys.LOCATION_MODE).get().equals(FreedApplication.getStringFromRessources(R.string.on_)))
+                cameraHolder.SetLocation(cameraUiWrapper.getActivityInterface().getLocationManager().getCurrentLocation());
 
-                cameraUiWrapper.getParameterHandler().SetPictureOrientation(cameraUiWrapper.getActivityInterface().getOrientation());
-                Log.d(TAG, "Start Take Picture");
-                waitForPicture = true;
-                if (cameraUiWrapper.getParameterHandler().PictureFormat.GetStringValue().equals(FileEnding.BAYER) || cameraUiWrapper.getParameterHandler().PictureFormat.GetStringValue().equals(FileEnding.DNG)) {
-                    String timestamp = String.valueOf(System.currentTimeMillis());
-                    ((ParametersHandler)cameraUiWrapper.getParameterHandler()).Set_RAWFNAME(StringUtils.GetInternalSDCARD()+"/DCIM/FreeDCam/" + "mtk" + timestamp + ".bayer");
-                }
-                isWorking = true;
-                changeCaptureState(CaptureStates.image_capture_start);
-                cameraHolder.TakePicture(PictureModuleMTK.this);
+            cameraUiWrapper.getParameterHandler().SetPictureOrientation(cameraUiWrapper.getActivityInterface().getOrientation());
+            Log.d(TAG, "Start Take Picture");
+            waitForPicture = true;
+            ParameterInterface picformat = cameraUiWrapper.getParameterHandler().get(SettingKeys.PictureFormat);
+            if (picformat.GetStringValue().equals(FileEnding.BAYER) || picformat.GetStringValue().equals(FileEnding.DNG)) {
+                String timestamp = String.valueOf(System.currentTimeMillis());
+                ((ParametersHandler)cameraUiWrapper.getParameterHandler()).Set_RAWFNAME(StringUtils.GetInternalSDCARD()+"/DCIM/FreeDCam/" + "mtk" + timestamp + ".bayer");
             }
+            isWorking = true;
+            changeCaptureState(CaptureStates.image_capture_start);
+            cameraHolder.TakePicture(PictureModuleMTK.this);
         });
 
 
@@ -81,29 +83,29 @@ public class PictureModuleMTK extends PictureModule
             return;
         waitForPicture =false;
         Log.d(TAG, "Take Picture CallBack");
-        String picformat = cameraUiWrapper.getParameterHandler().PictureFormat.GetStringValue();
+        String picformat = cameraUiWrapper.getParameterHandler().get(SettingKeys.PictureFormat).GetStringValue();
         // must always be jpg ending. dng gets created based on that
         holdFile = getFile(".jpg");
         Log.d(TAG, "HolderFilePath:" + holdFile.getAbsolutePath());
-        if (picformat.equals(cameraUiWrapper.getResString(R.string.jpeg_)))
+        if (picformat.equals(FreedApplication.getStringFromRessources(R.string.jpeg_)))
         {
-            saveJpeg(holdFile,data);
+
+            saveJpeg(data,holdFile);
             try {
                 DeviceSwitcher().delete();
             } catch (Exception ex) {
                 Log.WriteEx(ex);
             }
         }
-        else if (picformat.equals(cameraUiWrapper.getResString(R.string.dng_)))
+        else if (picformat.equals(FreedApplication.getStringFromRessources(R.string.dng_)))
         {
-            saveJpeg(holdFile,data);
+            saveJpeg(data,holdFile);
             CreateDNG_DeleteRaw();
         }
         else
         {
-            saveJpeg(holdFile,data);
+            saveJpeg(data,holdFile);
         }
-        fireOnWorkFinish(holdFile);
         waitForPicture = false;
         data = null;
         startPreview();
@@ -126,7 +128,7 @@ public class PictureModuleMTK extends PictureModule
                 }
                 else {
                     Log.d(TAG,"############ Failed to read Raw #########" );
-                    cameraUiWrapper.getCameraHolder().SendUIMessage("Timout:Failed to read Raw");
+                    UserMessageHandler.sendMSG("Timout:Failed to read Raw",false);
                     return;
                 }
             }
@@ -148,7 +150,6 @@ public class PictureModuleMTK extends PictureModule
         File dng = new File(holdFile.getAbsolutePath().replace(FileEnding.JPG, FileEnding.DNG));
         saveDng(data,dng);
         data = null;
-        fireOnWorkFinish(dng);
     }
 
 

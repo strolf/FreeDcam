@@ -22,67 +22,122 @@ package freed.cam.apis.camera2.modules;
 import android.annotation.TargetApi;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
-import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraCaptureSession.CaptureCallback;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.CaptureResult;
-import android.hardware.camera2.TotalCaptureResult;
-import android.media.ImageReader;
-import android.os.AsyncTask;
+import android.location.Location;
 import android.os.Build.VERSION_CODES;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.renderscript.RenderScript.RSErrorHandler;
+import android.text.TextUtils;
 import android.util.Size;
 import android.view.Surface;
 
 import com.troop.freedcam.R;
 
-import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.List;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract.CaptureStates;
 import freed.cam.apis.basecamera.parameters.modes.ToneMapChooser;
-import freed.cam.apis.camera2.CameraHolderApi2.CompareSizesByArea;
-import freed.cam.apis.camera2.CaptureSessionHandler;
-import freed.cam.apis.camera2.parameters.AeHandler;
+import freed.cam.apis.camera2.Camera2Fragment;
+import freed.cam.apis.camera2.CameraHolderApi2;
+import freed.cam.apis.camera2.CameraValuesChangedCaptureCallback;
+import freed.cam.apis.camera2.modules.capture.AbstractImageCapture;
+import freed.cam.apis.camera2.modules.capture.ByteImageCapture;
+import freed.cam.apis.camera2.modules.capture.CaptureController;
+import freed.cam.apis.camera2.modules.capture.JpegCapture;
+import freed.cam.apis.camera2.modules.capture.RawImageCapture;
+import freed.cam.apis.camera2.modules.capture.StillImageCapture;
+import freed.cam.apis.camera2.modules.helper.CaptureType;
+import freed.cam.apis.camera2.modules.helper.FindOutputHelper;
+import freed.cam.apis.camera2.modules.helper.Output;
+import freed.cam.apis.camera2.modules.helper.RdyToSaveImg;
+import freed.cam.apis.camera2.parameters.ae.AeManagerCamera2;
+import freed.cam.events.CameraStateEvents;
+import freed.file.holder.BaseHolder;
+import freed.renderscript.RenderScriptProcessor;
+import freed.settings.Frameworks;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
+import freed.utils.OrientationUtil;
 
 
 /**
  * Created by troop on 12.12.2014.
  */
 @TargetApi(VERSION_CODES.LOLLIPOP)
-public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder.RdyToSaveImg
+public class PictureModuleApi2 extends AbstractModuleApi2 implements RdyToSaveImg
 {
-
-
     private final String TAG = PictureModuleApi2.class.getSimpleName();
     private String picFormat;
-    private int mImageWidth;
-    private int mImageHeight;
-    protected ImageReader mImageReader;
-    protected ImageReader mrawImageReader;
-    protected int imagecount;
+    protected Output output;
+    //protected ImageReader jpegReader;
+    //protected ImageReader rawReader;
     private final int STATE_WAIT_FOR_PRECAPTURE = 0;
     private final int STATE_WAIT_FOR_NONPRECAPTURE = 1;
     private final int STATE_PICTURE_TAKEN = 2;
+    private final int STATE_WAITING_LOCK = 3;
     private int mState = STATE_PICTURE_TAKEN;
     private long mCaptureTimer;
     private static final long PRECAPTURE_TIMEOUT_MS = 1000;
-    private boolean intervalCapture = false;
-    LinkedBlockingQueue<ImageHolder> imageSaveQueue;
+    //private ImageCaptureHolder currentCaptureHolder;
+    private final int MAX_IMAGES = 8;
+    protected List<BaseHolder> filesSaved;
 
-    private final int MAX_IMAGES = 5;
+    private boolean isBurstCapture = false;
 
+    private final int max_images = 5;
+
+    /*private boolean captureDng = false;
+    private boolean captureJpeg = false;*/
+    protected CaptureType captureType;
+    protected Camera2Fragment cameraUiWrapper;
+    protected CaptureController captureController;
+
+    protected static class BurstCounter
+    {
+        private static int burstCount = 1;
+        private static int imageCaptured = 0;
+
+        public static synchronized void setBurstCount(int burstCount1)
+        {
+            burstCount = burstCount1;
+        }
+
+        public static synchronized int getBurstCount()
+        {
+            return burstCount;
+        }
+
+        public static synchronized void increase()
+        {
+            imageCaptured++;
+        }
+
+        public static synchronized void resetImagesCaptured()
+        {
+            imageCaptured = 0;
+        }
+
+        public static synchronized int getImageCaptured()
+        {
+            return imageCaptured;
+        }
+
+    }
 
     public PictureModuleApi2(CameraWrapperInterface cameraUiWrapper, Handler mBackgroundHandler, Handler mainHandler) {
         super(cameraUiWrapper,mBackgroundHandler,mainHandler);
-        imageSaveQueue = new LinkedBlockingQueue<>(MAX_IMAGES);
-        name = cameraUiWrapper.getResString(R.string.module_picture);
+        this.cameraUiWrapper = (Camera2Fragment)cameraUiWrapper;
+        name = FreedApplication.getStringFromRessources(R.string.module_picture);
+        filesSaved = new ArrayList<>();
+
     }
 
     @Override
@@ -95,23 +150,31 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
         return "Pic";
     }
 
+    public CaptureController getCaptureController()
+    {
+        return new CaptureController(this::onRdyToSaveImg);
+    }
+
     @Override
     public void InitModule()
     {
         super.InitModule();
+        ((RenderScriptProcessor)cameraUiWrapper.getFocusPeakProcessor()).setRenderScriptErrorListner(new MyRSErrorHandler());
         Log.d(TAG, "InitModule");
         changeCaptureState(CaptureStates.image_capture_stop);
-        cameraUiWrapper.getParameterHandler().Burst.SetValue(0);
+        captureController = getCaptureController();
+        cameraUiWrapper.getParameterHandler().get(SettingKeys.M_Burst).SetValue(0, true);
         startPreview();
     }
 
     @Override
     public void DestroyModule()
     {
+        captureController.clear();
         Log.d(TAG, "DestroyModule");
-        cameraHolder.captureSessionHandler.CloseCaptureSession();
+        cameraUiWrapper.captureSessionHandler.CloseCaptureSession();
         cameraUiWrapper.getFocusPeakProcessor().kill();
-        super.DestroyModule();
+        ((RenderScriptProcessor)cameraUiWrapper.getFocusPeakProcessor()).setRenderScriptErrorListner(null);
     }
 
     @Override
@@ -119,12 +182,16 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
     {
         Log.d(TAG, "startWork: start new progress");
         if(!isWorking)
-            mBackgroundHandler.post(TakePicture);
+            mBackgroundHandler.post(()-> takePicture());
         else if (isWorking)
         {
-            cameraHolder.captureSessionHandler.cancelCapture();
-            finishCapture();
-            changeCaptureState(CaptureStates.image_capture_stop);
+            mBackgroundHandler.post(()->{
+                Log.d(TAG, "cancel capture");
+                cameraUiWrapper.captureSessionHandler.cancelCapture();
+                finishCapture();
+                changeCaptureState(CaptureStates.image_capture_stop);
+            });
+
         }
     }
 
@@ -133,126 +200,227 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
 
 
         Log.d(TAG, "Start Preview");
-        setOutputSizes();
+        setOutputSizesAndCreateImageReader();
 
         int sensorOrientation = cameraHolder.characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-        int orientationToSet = (360 +cameraUiWrapper.getActivityInterface().getOrientation() + sensorOrientation)%360;
-        if (appSettingsManager.orientationhack.getBoolean())
-            orientationToSet = (360 +cameraUiWrapper.getActivityInterface().getOrientation() + sensorOrientation+180)%360;
-        cameraHolder.captureSessionHandler.SetParameter(CaptureRequest.JPEG_ORIENTATION, orientationToSet);
+        Log.d(TAG, "sensorOrientation:" + sensorOrientation);
+        int orientationToSet = (360 + sensorOrientation)%360;
+        Log.d(TAG, "orientation to set :" +orientationToSet);
 
         // Here, we create a CameraCaptureSession for camera preview
 
-        try {
-            Size previewSize = cameraHolder.getSizeForPreviewDependingOnImageSize(cameraHolder.map.getOutputSizes(ImageFormat.YUV_420_888), cameraHolder.characteristics, mImageWidth, mImageHeight);
-            if (cameraUiWrapper.getFocusPeakProcessor() != null)
-            {
-                cameraUiWrapper.getFocusPeakProcessor().kill();
-            }
-            int orientation = 0;
-            switch (sensorOrientation)
-            {
-                case 90:
-                    orientation = 0;
-                    break;
-                case 180:
-                    orientation =90;
-                    break;
-                case 270: orientation = 180;
-                    break;
-                case 0: orientation = 270;
-                    break;
-            }
-            final int w = previewSize.getWidth();
-            final int h = previewSize.getHeight();
-            final int or = orientation;
-            mainHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraHolder.captureSessionHandler.SetTextureViewSize(w, h,or,or+180,false);
-                }
-            });
+        Size previewSize = cameraUiWrapper.getSizeForPreviewDependingOnImageSize(ImageFormat.YUV_420_888, output.jpeg_width, output.jpeg_height);
 
-            SurfaceTexture texture = cameraHolder.captureSessionHandler.getSurfaceTexture();
-            texture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
-            Surface previewsurface = new Surface(texture);
+        preparePreviewTextureView(orientationToSet, previewSize);
 
-            cameraUiWrapper.getFocusPeakProcessor().Reset(previewSize.getWidth(), previewSize.getHeight());
-            cameraUiWrapper.getFocusPeakProcessor().setOutputSurface(previewsurface);
-            Surface camerasurface = cameraUiWrapper.getFocusPeakProcessor().getInputSurface();
-            cameraHolder.captureSessionHandler.AddSurface(camerasurface,true);
+        for (AbstractImageCapture s : captureController.getImageCaptures())
+            cameraUiWrapper.captureSessionHandler.AddSurface(s.getSurface(),false);
 
-            cameraHolder.captureSessionHandler.AddSurface(mImageReader.getSurface(),false);
-            if (mrawImageReader != null)
-                cameraHolder.captureSessionHandler.AddSurface(mrawImageReader.getSurface(),false);
+        cameraUiWrapper.captureSessionHandler.CreateCaptureSession();
 
-            cameraHolder.captureSessionHandler.CreateCaptureSession();
+        cameraUiWrapper.captureSessionHandler.createImageCaptureRequestBuilder();
+        for (AbstractImageCapture s : captureController.getImageCaptures())
+            cameraUiWrapper.captureSessionHandler.setImageCaptureSurface(s.getSurface());
+        if (parameterHandler.get(SettingKeys.M_Burst) != null)
+            parameterHandler.get(SettingKeys.M_Burst).fireStringValueChanged(parameterHandler.get(SettingKeys.M_Burst).GetStringValue());
+        CameraStateEvents.firePreviewOpenEvent();
 
-            cameraHolder.captureSessionHandler.createImageCaptureRequestBuilder();
-            cameraHolder.captureSessionHandler.setImageCaptureSurface(mImageReader.getSurface());
-            if (mrawImageReader != null)
-                cameraHolder.captureSessionHandler.setImageCaptureSurface(mrawImageReader.getSurface());
-        }
-        catch(Exception ex)
-        {
-            Log.WriteEx(ex);
-        }
-        if (parameterHandler.Burst != null)
-            parameterHandler.Burst.fireStringValueChanged(parameterHandler.Burst.GetStringValue());
     }
 
-    private void setOutputSizes() {
-        String picSize = appSettingsManager.pictureSize.get();
-        Size largestImageSize = Collections.max(
-                Arrays.asList(cameraHolder.map.getOutputSizes(ImageFormat.JPEG)),
-                new CompareSizesByArea());
-        picFormat = appSettingsManager.pictureFormat.get();
-        if (picFormat.equals("")) {
-            picFormat = appSettingsManager.getResString(R.string.pictureformat_jpeg);
-            appSettingsManager.pictureFormat.set(picFormat);
-            parameterHandler.PictureFormat.fireStringValueChanged(picFormat);
+    private void preparePreviewTextureView(int orientationToSet, Size previewSize) {
+        SurfaceTexture texture = cameraUiWrapper.getTexturView().getSurfaceTexture();
+        texture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
+       /* if (cameraUiWrapper.getPreviewSurface() != null)
+            cameraUiWrapper.getPreviewSurface().release();*/
+        Surface previewsurface = new Surface(cameraUiWrapper.getTexturView().getSurfaceTexture());
+        int w = previewSize.getWidth();
+        int h = previewSize.getHeight();
 
-        }
 
-        String[] split = picSize.split("x");
-        if (split.length < 2)
-        {
-            mImageWidth = largestImageSize.getWidth();
-            mImageHeight = largestImageSize.getHeight();
+        Log.d(TAG, "Preview size to set : " + w + "x" +h);
+
+        if (SettingsManager.getGlobal(SettingKeys.EnableRenderScript).get()) {
+            Log.d(TAG, "RenderScriptPreview");
+            int rotation = 0;
+            switch (orientationToSet)
+            {
+                case 90:
+                    rotation = 0;
+                    break;
+                case 180:
+                    rotation =90;
+                    break;
+                case 270: rotation = 180;
+                    break;
+                case 0: rotation = 270;
+                    break;
+            }
+            final int or = OrientationUtil.getOrientation(rotation);
+            if (!SettingsManager.get(SettingKeys.SWITCH_ASPECT_RATIO).get()) {
+                if (or == 90 || or == 270) {
+                    w = previewSize.getHeight();
+                    h = previewSize.getWidth();
+                }
+            } else
+            {
+                if (or == 0 || or == 180) {
+                    w = previewSize.getHeight();
+                    h = previewSize.getWidth();
+                }
+            }
+            Log.d(TAG, "rotation to set : " + or);
+            int finalW = w;
+            int finalH = h;
+            mainHandler.post(() -> cameraUiWrapper.captureSessionHandler.SetTextureViewSize(finalW, finalH,or,true));
+
+            cameraUiWrapper.getFocusPeakProcessor().Reset(previewSize.getWidth(), previewSize.getHeight(),previewsurface);
+
+            Surface camerasurface = cameraUiWrapper.getFocusPeakProcessor().getInputSurface();
+            cameraUiWrapper.captureSessionHandler.AddSurface(camerasurface, true);
+            cameraUiWrapper.getFocusPeakProcessor().start();
         }
         else
         {
-            mImageWidth = Integer.parseInt(split[0]);
-            mImageHeight = Integer.parseInt(split[1]);
+            Log.d(TAG, "Normal Preview");
+            int rotation = 0;
+            switch (orientationToSet)
+            {
+                case 90:
+                    rotation = 270;
+                    break;
+                case 180:
+                    rotation =0;
+                    break;
+                case 270: rotation = 270;
+                    break;
+                case 0: rotation = 180;
+                    break;
+            }
+
+            final int or = OrientationUtil.getOrientation(rotation);;
+            Log.d(TAG, "rotation to set : " + or);
+            if (!SettingsManager.get(SettingKeys.SWITCH_ASPECT_RATIO).get()) {
+                if (or == 0 || or == 180) {
+                    w = previewSize.getHeight();
+                    h = previewSize.getWidth();
+                }
+            }
+            else
+            {
+                if (or == 90 || or == 270) {
+                    w = previewSize.getHeight();
+                    h = previewSize.getWidth();
+                }
+            }
+            int finalW1 = w;
+            int finalH1 = h;
+            mainHandler.post(() -> cameraUiWrapper.captureSessionHandler.SetTextureViewSize(finalW1, finalH1, or,false));
+            cameraUiWrapper.captureSessionHandler.AddSurface(previewsurface, true);
         }
-        //create new ImageReader with the size and format for the image
-        mImageReader = ImageReader.newInstance(mImageWidth, mImageHeight, ImageFormat.JPEG, MAX_IMAGES);
+    }
+
+    private void setOutputSizesAndCreateImageReader() {
+
+        picFormat = SettingsManager.get(SettingKeys.PictureFormat).get();
+        if (TextUtils.isEmpty(picFormat)) {
+            picFormat = FreedApplication.getStringFromRessources(R.string.pictureformat_jpeg);
+            SettingsManager.get(SettingKeys.PictureFormat).set(picFormat);
+            parameterHandler.get(SettingKeys.PictureFormat).fireStringValueChanged(picFormat);
+        }
+        FindOutputHelper findOutputHelper = new FindOutputHelper();
+        if (SettingsManager.getInstance().getFrameWork() == Frameworks.HuaweiCamera2Ex)
+        {
+            output = findOutputHelper.getHuaweiOutput(cameraHolder);
+        }
+        else {
+            output = findOutputHelper.getStockOutput(cameraHolder);
+        }
+
+
         Log.d(TAG, "ImageReader JPEG");
+        getCaptureType();
+        //create new ImageReader with the size and format for the image, its needed for p9 else dual or single cam ignores expotime on a dng only capture....
+        //if (captureType == CaptureType.Jpeg)
+        createImageCaptureListners();
+    }
 
-
-
-        if (picFormat.equals(appSettingsManager.getResString(R.string.pictureformat_dng16)))
-        {
-            Log.d(TAG, "ImageReader RAW_SENOSR");
-            largestImageSize = Collections.max(Arrays.asList(cameraHolder.map.getOutputSizes(ImageFormat.RAW_SENSOR)), new CompareSizesByArea());
-            mrawImageReader = ImageReader.newInstance(largestImageSize.getWidth(), largestImageSize.getHeight(), ImageFormat.RAW_SENSOR, MAX_IMAGES);
-        }
-        else if (picFormat.equals(appSettingsManager.getResString(R.string.pictureformat_dng10)))
-        {
-            Log.d(TAG, "ImageReader RAW10");
-            largestImageSize = Collections.max(Arrays.asList(cameraHolder.map.getOutputSizes(ImageFormat.RAW10)), new CompareSizesByArea());
-            mrawImageReader = ImageReader.newInstance(largestImageSize.getWidth(), largestImageSize.getHeight(), ImageFormat.RAW10, MAX_IMAGES);
-
-        }
-        else if (picFormat.equals(appSettingsManager.getResString(R.string.pictureformat_dng12)))
-        {
-            Log.d(TAG, "ImageReader RAW12");
-            largestImageSize = Collections.max(Arrays.asList(cameraHolder.map.getOutputSizes(ImageFormat.RAW12)), new CompareSizesByArea());
-            mImageReader = ImageReader.newInstance(largestImageSize.getWidth(), largestImageSize.getHeight(), ImageFormat.RAW12, MAX_IMAGES);
-
-        }
+    protected void createImageCaptureListners() {
+        ByteImageCapture byteImageCapture;
+        if (captureType == CaptureType.Jpeg || captureType == CaptureType.JpegDng16 || captureType == CaptureType.JpegDng10)
+            byteImageCapture = new JpegCapture(new Size(output.jpeg_width,output.jpeg_height),false,cameraUiWrapper.getActivityInterface(),this,".jpg",max_images);
         else
-            mrawImageReader = null;
+        {
+            Size smallestImageSize = Collections.min(
+                    Arrays.asList(cameraHolder.map.getOutputSizes(ImageFormat.JPEG)),
+                    new CameraHolderApi2.CompareSizesByArea());
+            byteImageCapture = new JpegCapture(smallestImageSize,false,cameraUiWrapper.getActivityInterface(),this,".jpg",max_images);
+        }
+        captureController.add(byteImageCapture);
+        if (captureType == CaptureType.Yuv) {
+            String yuvsize = SettingsManager.get(SettingKeys.YuvSize).get();
+            String[] split = yuvsize.split("x");
+            Size s = new Size(Integer.parseInt(split[0]), Integer.parseInt(split[1]));
+            ByteImageCapture yuvimgcapture = new ByteImageCapture(s, ImageFormat.YUV_420_888,false,cameraUiWrapper.getActivityInterface(),this,".yuv",max_images);
+            captureController.add(yuvimgcapture);
+        }
+
+        if (output.raw_format != 0 && isDngCapture())
+        {
+            RawImageCapture rawImageCapture = new RawImageCapture(new Size(output.raw_width,output.raw_height),output.raw_format,false,cameraUiWrapper.getActivityInterface(),this,".dng",max_images);
+            captureController.add(rawImageCapture);
+            //rawReader = ImageReader.newInstance(output.raw_width, output.raw_height, output.raw_format, MAX_IMAGES);
+        }
+        else if (output.raw_format != 0 &&  isBayerCapture())
+        {
+            ByteImageCapture byteImageCapture1 = new ByteImageCapture(new Size(output.raw_width,output.raw_height),output.raw_format,false,cameraUiWrapper.getActivityInterface(),this,".bayer",max_images);
+            captureController.add(byteImageCapture1);
+        }
+    }
+
+    private boolean isDngCapture()
+    {
+        return captureType == CaptureType.JpegDng10  || captureType == CaptureType.JpegDng16 || captureType == CaptureType.Dng16 || captureType == CaptureType.Dng10;
+    }
+
+    private boolean isBayerCapture()
+    {
+        return captureType == CaptureType.Bayer10 || captureType == CaptureType.Bayer16;
+    }
+
+    private void getCaptureType() {
+        if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_jpeg))) {
+            captureType = CaptureType.Jpeg;
+        }
+        if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_yuv))) {
+            captureType = CaptureType.Yuv;
+        }
+
+        if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_dng16)) || picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_jpg_p_dng))) {
+            Log.d(TAG, "ImageReader RAW_SENSOR");
+            if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_dng16))) {
+                captureType = CaptureType.Dng16;
+            } else {
+                captureType = CaptureType.JpegDng16;
+            }
+        }
+        else if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_dng10))) {
+            Log.d(TAG, "ImageReader RAW10");
+            captureType = CaptureType.Dng10;
+        }
+        else if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_dng12))) {
+            Log.d(TAG, "ImageReader RAW12");
+            captureType= CaptureType.Dng12;
+        }
+        else if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_bayer))) {
+            Log.d(TAG, "ImageReader BAYER16");
+            captureType = CaptureType.Bayer16;
+        }
+        else if (picFormat.equals(FreedApplication.getStringFromRessources(R.string.pictureformat_bayer10)))
+        {
+            Log.d(TAG, "ImageReader BAYER10");
+            captureType = CaptureType.Bayer10;
+        }
+
     }
 
 
@@ -262,38 +430,64 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
         DestroyModule();
     }
 
-    private Runnable TakePicture = new Runnable()
+    protected void takePicture()
     {
-        @Override
-        public void run() {
-            isWorking = true;
-            Log.d(TAG, appSettingsManager.pictureFormat.get());
-            Log.d(TAG, "dng:" + Boolean.toString(parameterHandler.IsDngActive()));
-            imagecount = 0;
+        isWorking = true;
+        Log.d(TAG, SettingsManager.get(SettingKeys.PictureFormat).get());
+        BurstCounter.resetImagesCaptured();
+        BurstCounter.setBurstCount(Integer.parseInt(parameterHandler.get(SettingKeys.M_Burst).GetStringValue()));
+        if (BurstCounter.getBurstCount() > 1)
+            isBurstCapture = true;
+        else
+            isBurstCapture =false;
+        onStartTakePicture();
 
-
-            onStartTakePicture();
-
-            if (appSettingsManager.hasCamera2Features() && cameraHolder.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AE_MODE) != CaptureRequest.CONTROL_AE_MODE_OFF) {
-                PictureModuleApi2.this.setCaptureState(STATE_WAIT_FOR_PRECAPTURE);
-                Log.d(TAG,"Start AE Precapture");
-                startTimerLocked();
-                cameraHolder.StartAePrecapture(aecallback);
-
-            }
-            else
-            {
-                Log.d(TAG, "captureStillPicture");
-                captureStillPicture();
-            }
-
+        if (SettingsManager.getInstance().hasCamera2Features() && (cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AE_MODE) != CaptureRequest.CONTROL_AE_MODE_OFF)
+                || cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AF_MODE) != CaptureRequest.CONTROL_AF_MODE_OFF) {
+            startPreCapture();
         }
+        else
+        {
+            Log.d(TAG, "captureStillPicture");
+            captureStillPicture();
+        }
+    }
 
-    };
-
-    public void setIntervalCapture(boolean isInterval)
+    private boolean isContAutoFocus()
     {
-        intervalCapture = isInterval;
+        return cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AF_MODE) == CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE ||
+                cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AF_MODE) == CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO;
+    }
+
+    private void startPreCapture() {
+        PictureModuleApi2.this.setCaptureState(STATE_WAIT_FOR_PRECAPTURE);
+        cameraUiWrapper.cameraBackroundValuesChangedListner.setWaitForAe_af_lock(new CameraValuesChangedCaptureCallback.WaitForAe_Af_Lock() {
+            @Override
+            public void on_Ae_Af_Lock(CameraValuesChangedCaptureCallback.AeAfLocker aeAfLocker) {
+                Log.d(TAG, "ae locked: " + aeAfLocker.getAeLock() +" af locked: " + aeAfLocker.getAfLock());
+                if (mState == STATE_WAIT_FOR_PRECAPTURE) {
+                    if (isContAutoFocus()) {
+                        if ((aeAfLocker.getAfLock() && aeAfLocker.getAeLock()) || hitTimeoutLocked()) {
+                            cameraUiWrapper.cameraBackroundValuesChangedListner.setWaitForAe_af_lock(null);
+                            setCaptureState(STATE_PICTURE_TAKEN);
+                            captureStillPicture();
+                        }
+                    } else if (aeAfLocker.getAeLock() || hitTimeoutLocked()) {
+                        cameraUiWrapper.cameraBackroundValuesChangedListner.setWaitForAe_af_lock(null);
+                        setCaptureState(STATE_PICTURE_TAKEN);
+                        captureStillPicture();
+                    }
+                }
+            }
+        });
+        Log.d(TAG,"Start AE Precapture");
+        startTimerLocked();
+
+        if (cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AF_MODE) != CaptureRequest.CONTROL_AF_MODE_OFF)
+            cameraUiWrapper.captureSessionHandler.StartAePrecapture();
+        if (isContAutoFocus())
+            cameraUiWrapper.captureSessionHandler.SetPreviewParameter(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START,false);
+        cameraUiWrapper.captureSessionHandler.capture();
     }
 
     protected void onStartTakePicture()
@@ -307,106 +501,53 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
      */
     protected void captureStillPicture() {
 
-        ImageHolder currentCaptureHolder = new ImageHolder(cameraHolder.characteristics, mrawImageReader !=null, cameraUiWrapper.getActivityInterface(),this,this, this);
-        currentCaptureHolder.setFilePath(getFileString(), appSettingsManager.GetWriteExternal());
-        currentCaptureHolder.setForceRawToDng(appSettingsManager.isForceRawToDng());
-        currentCaptureHolder.setToneMapProfile(((ToneMapChooser)cameraUiWrapper.getParameterHandler().tonemapChooser).getToneMap());
+        Log.d(TAG,"########### captureStillPicture ###########");
 
-        Log.d(TAG, "captureStillPicture ImgCount:"+ imagecount +  " ImageHolder Path:" + currentCaptureHolder.filepath);
-
-        if (cameraUiWrapper.getParameterHandler().locationParameter.GetStringValue().equals(appSettingsManager.getResString(R.string.on_)))
+        Location currentLocation = null;
+        if (cameraUiWrapper.getParameterHandler().get(SettingKeys.LOCATION_MODE).GetStringValue().equals(FreedApplication.getStringFromRessources(R.string.on_)))
         {
-            currentCaptureHolder.setLocation(cameraUiWrapper.getActivityInterface().getLocationHandler().getCurrentLocation());
-            cameraHolder.captureSessionHandler.SetParameter(CaptureRequest.JPEG_GPS_LOCATION,cameraUiWrapper.getActivityInterface().getLocationHandler().getCurrentLocation());
+            currentLocation = cameraUiWrapper.getActivityInterface().getLocationManager().getCurrentLocation();
+            Log.d(TAG,"currentLocation null:" +(currentLocation == null));
+            if (currentLocation != null)
+                cameraUiWrapper.captureSessionHandler.SetCaptureParameter(CaptureRequest.JPEG_GPS_LOCATION,currentLocation);
         }
 
-        String cmat = appSettingsManager.matrixset.get();
-        if (cmat != null && !cmat.equals("") &&!cmat.equals("off")) {
-            currentCaptureHolder.setCustomMatrix(appSettingsManager.getMatrixesMap().get(cmat));
-        }
-
-        while (imageSaveQueue.size() == MAX_IMAGES) {
-            try {
-                Log.d(TAG,"Wait for free Queue");
-                Thread.sleep(5);
-                Log.d(TAG,"Wait for free Queue poll end");
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+        for (int i = 0; i< captureController.getImageCaptures().size();i++)
+        {
+            AbstractImageCapture currentCaptureHolder = captureController.getImageCaptures().get(i);
+            if (currentCaptureHolder instanceof StillImageCapture) {
+                StillImageCapture stillImageCapture = (StillImageCapture) currentCaptureHolder;
+                stillImageCapture.setFilePath(getFileString(), SettingsManager.getInstance().GetWriteExternal());
+                stillImageCapture.setForceRawToDng(SettingsManager.get(SettingKeys.forceRawToDng).get());
+                stillImageCapture.setToneMapProfile(((ToneMapChooser) cameraUiWrapper.getParameterHandler().get(SettingKeys.TONEMAP_SET)).getToneMap());
+                stillImageCapture.setSupport12bitRaw(SettingsManager.get(SettingKeys.support12bitRaw).get());
+                stillImageCapture.setOrientation(cameraUiWrapper.getActivityInterface().getOrientation());
+                stillImageCapture.setCharacteristics(cameraUiWrapper.getCameraHolder().characteristics);
+                stillImageCapture.setCaptureType(captureType);
+                if (currentLocation != null)
+                    stillImageCapture.setLocation(currentLocation);
+                String cmat = SettingsManager.get(SettingKeys.MATRIX_SET).get();
+                if (cmat != null && !TextUtils.isEmpty(cmat) && !cmat.equals("off")) {
+                    stillImageCapture.setCustomMatrix(SettingsManager.getInstance().getMatrixesMap().get(cmat));
+                }
             }
         }
 
-        mImageReader.setOnImageAvailableListener(currentCaptureHolder.mOnRawImageAvailableListener,mBackgroundHandler);
-        if (mrawImageReader != null)
-        {
-            mrawImageReader.setOnImageAvailableListener(currentCaptureHolder.mOnRawImageAvailableListener,mBackgroundHandler);
-        }
-                /*try {
-                    Log.d(TAG, "ImageQueue limit reached drop image");
-                    ImageHolder toremove = imageSaveQueue.take();
-                    toremove.CLEAR();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }*/
 
+        cameraUiWrapper.captureSessionHandler.SetCaptureParameter(CaptureRequest.JPEG_ORIENTATION, cameraUiWrapper.getActivityInterface().getOrientation());
 
-        Log.d(TAG, "Queue free add new Img");
-        synchronized (imageSaveQueue) {
-            imageSaveQueue.add(currentCaptureHolder);
-        }
-
-
-        prepareCaptureBuilder(imagecount);
-        Log.d(TAG, "CancelRepeatingCaptureSessoion set imageRdyCallback");
-        ImageCaptureRDYEvent imageCaptureRdyCallback = new ImageCaptureRDYEvent(currentCaptureHolder.imageCaptureMetaCallback);
-        if (!cameraHolder.captureSessionHandler.IsCaptureSessionRDY())
-            cameraHolder.captureSessionHandler.StopRepeatingCaptureSession(imageCaptureRdyCallback);
-        else
-            imageCaptureRdyCallback.onRdy();
-
-
+        //cameraUiWrapper.captureSessionHandler.StopRepeatingCaptureSession();
+        //cameraUiWrapper.captureSessionHandler.CancelRepeatingCaptureSession();
+        prepareCaptureBuilder(BurstCounter.getImageCaptured());
+        changeCaptureState(CaptureStates.image_capture_start);
+        Log.d(TAG, "StartStillCapture");
+        cameraUiWrapper.captureSessionHandler.StopRepeatingCaptureSession();
+        cameraUiWrapper.captureSessionHandler.StartImageCapture(captureController, mBackgroundHandler);
     }
-
-    private class  ImageCaptureRDYEvent implements CaptureSessionHandler.CaptureEvent
-    {
-        private CameraCaptureSession.CaptureCallback captureCallback;
-        public ImageCaptureRDYEvent(CameraCaptureSession.CaptureCallback captureCallback)
-        {
-            this.captureCallback = captureCallback;
-        }
-
-        @Override
-        public void onRdy() {
-            changeCaptureState(CaptureStates.image_capture_start);
-            Log.d(TAG, "StartStillCapture");
-            cameraHolder.captureSessionHandler.StartImageCapture(captureCallback, mBackgroundHandler);
-        }
-    }
-
 
     protected void prepareCaptureBuilder(int captureNum)
     {
 
-    }
-
-    private String getAeStateString(int ae)
-    {
-        switch (ae)
-        {
-            case CaptureResult.CONTROL_AE_STATE_INACTIVE:
-                return "CONTROL_AE_STATE_INACTIVE";
-            case CaptureResult.CONTROL_AE_STATE_SEARCHING:
-                return "CONTROL_AE_STATE_SEARCHING";
-            case CaptureResult.CONTROL_AE_STATE_CONVERGED:
-                return "CONTROL_AE_STATE_CONVERGED";
-            case CaptureResult.CONTROL_AE_STATE_LOCKED:
-                return "CONTROL_AE_STATE_LOCKED";
-            case CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED:
-                return "CONTROL_AE_STATE_FLASH_REQUIRED";
-            case CaptureResult.CONTROL_AE_STATE_PRECAPTURE:
-                return "CONTROL_AE_STATE_PRECAPTURE";
-            default:
-                return "";
-        }
     }
 
     private String getCaptureState(int state)
@@ -424,66 +565,6 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
         }
     }
 
-    /**
-     * get used when a continouse focus mode is active to get best focus and exposure for capture.
-     * when both are found or timeout, a capture gets started
-     * this get called repeating by the camera till a capture happen
-     */
-    private CaptureCallback aecallback = new CaptureCallback()
-    {
-        private void processResult(CaptureResult partialResult)
-        {
-            Integer aeState = partialResult.get(CaptureResult.CONTROL_AE_STATE);
-            if (aeState != null)
-                Log.e(TAG, "CurrentCaptureState:" + getCaptureState(mState) + " AE_STATE:" + getAeStateString(aeState));
-            switch (mState)
-            {
-                case STATE_WAIT_FOR_PRECAPTURE:
-                    Log.d(TAG,"STATE_WAIT_FOR_PRECAPTURE  AESTATE:" + aeState);
-                    if (aeState == null)
-                    {
-                        setCaptureState(STATE_PICTURE_TAKEN);
-                        captureStillPicture();
-                    }
-                    else if (aeState == CaptureResult.CONTROL_AE_STATE_PRECAPTURE ||
-                            aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED)
-                    {
-                        Log.e(TAG,"Wait For nonprecapture");
-                        setCaptureState(STATE_WAIT_FOR_NONPRECAPTURE);
-                        if (hitTimeoutLocked())
-                        {
-                            mState = STATE_PICTURE_TAKEN;
-                            captureStillPicture();
-                        }
-                    }
-                    else if (aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED)
-                    {
-                        Log.d(TAG,"CONTROL_AE_STATE_CONVERGED captureStillPicture");
-                        setCaptureState(STATE_PICTURE_TAKEN);
-                        captureStillPicture();
-                    }
-                    break;
-                case STATE_WAIT_FOR_NONPRECAPTURE:
-                    Log.d(TAG,"STATE_WAIT_FOR_NONPRECAPTURE");
-                    setCaptureState(STATE_PICTURE_TAKEN);
-                    captureStillPicture();
-                    break;
-            }
-
-        }
-
-        @Override
-        public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult partialResult)
-        {
-            processResult(partialResult);
-        }
-
-        @Override
-        public void onCaptureProgressed(CameraCaptureSession session, CaptureRequest request, CaptureResult partialResult) {
-            processResult(partialResult);
-        }
-    };
-
     private void setCaptureState(int state)
     {
         mState = state;
@@ -498,14 +579,13 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
         return (SystemClock.elapsedRealtime() - mCaptureTimer) > PRECAPTURE_TIMEOUT_MS;
     }
 
-    private String getFileString()
+    protected String getFileString()
     {
-        if (Integer.parseInt(parameterHandler.Burst.GetStringValue()) > 1)
-            return cameraUiWrapper.getActivityInterface().getStorageHandler().getNewFilePath(appSettingsManager.GetWriteExternal(), "_" + imagecount);
+        if (BurstCounter.getBurstCount() > 1)
+            return cameraUiWrapper.getActivityInterface().getFileListController().getNewFilePath(SettingsManager.getInstance().GetWriteExternal(), "_" + BurstCounter.getImageCaptured());
         else
-            return cameraUiWrapper.getActivityInterface().getStorageHandler().getNewFilePath(appSettingsManager.GetWriteExternal(),"");
+            return cameraUiWrapper.getActivityInterface().getFileListController().getNewFilePath(SettingsManager.getInstance().GetWriteExternal(),"");
     }
-
 
     /**
      * Reset the capturesession to preview
@@ -516,64 +596,75 @@ public class PictureModuleApi2 extends AbstractModuleApi2 implements ImageHolder
         changeCaptureState(CaptureStates.image_capture_stop);
         try
         {
-            imagecount++;
-            Log.d(TAG, "CaptureDone:" + imagecount + " Queue size: " + imageSaveQueue.size());
-            if (Integer.parseInt(parameterHandler.Burst.GetStringValue())  > imagecount) {
+            BurstCounter.increase();
+            Log.d(TAG,"finished Capture:" + BurstCounter.getImageCaptured() + "isBurst:" + isBurstCapture);
+            if (BurstCounter.getBurstCount()  > BurstCounter.getImageCaptured()) {
                 captureStillPicture();
             }
-            else if (cameraHolder.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AE_MODE) == CaptureRequest.CONTROL_AE_MODE_OFF) {
-                cameraHolder.captureSessionHandler.SetPreviewParameter(CaptureRequest.SENSOR_EXPOSURE_TIME, AeHandler.MAX_PREVIEW_EXPOSURETIME);
-                cameraHolder.captureSessionHandler.SetPreviewParameter(CaptureRequest.SENSOR_FRAME_DURATION, AeHandler.MAX_PREVIEW_EXPOSURETIME);
+            else if (cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AE_MODE) != null &&
+                    cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AE_MODE) == CaptureRequest.CONTROL_AE_MODE_OFF &&
+                    cameraUiWrapper.captureSessionHandler.getPreviewParameter(CaptureRequest.SENSOR_EXPOSURE_TIME)> AeManagerCamera2.MAX_PREVIEW_EXPOSURETIME) {
+                cameraUiWrapper.captureSessionHandler.SetPreviewParameter(CaptureRequest.SENSOR_EXPOSURE_TIME, AeManagerCamera2.MAX_PREVIEW_EXPOSURETIME,true);
+                cameraUiWrapper.captureSessionHandler.SetPreviewParameter(CaptureRequest.SENSOR_FRAME_DURATION, AeManagerCamera2.MAX_PREVIEW_EXPOSURETIME,true);
                 Log.d(TAG, "CancelRepeatingCaptureSessoion set onSessionRdy");
-                cameraHolder.captureSessionHandler.CancelRepeatingCaptureSession(onSesssionRdy);
+                cameraUiWrapper.captureSessionHandler.CancelRepeatingCaptureSession();
+                onSesssionRdy();
             }
             else {
-                onSesssionRdy.onRdy();
+                onSesssionRdy();
             }
-
         }
         catch (NullPointerException ex) {
-            Log.WriteEx(ex);;
+            Log.WriteEx(ex);
         }
     }
 
-    /**
-     * get called when the capture session is rdy to work with
-     */
-    private CaptureSessionHandler.CaptureEvent onSesssionRdy = new CaptureSessionHandler.CaptureEvent()
+    private void onSesssionRdy()
     {
-        @Override
-        public void onRdy() {
+        Log.d(TAG, "onSessionRdy() ######################### Rdy to Start Preview, CAPTURE CYCLE DONE #####################");
 
-
-            Log.d(TAG, "onSessionRdy() Rdy to Start Preview");
-            cameraHolder.captureSessionHandler.StartRepeatingCaptureSession();
-            if (cameraHolder.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AF_MODE) == CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
-                    || cameraHolder.captureSessionHandler.getPreviewParameter(CaptureRequest.CONTROL_AF_MODE) == CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO) {
-                cameraHolder.captureSessionHandler.SetParameterRepeating(CaptureRequest.CONTROL_AF_TRIGGER,
-                        CaptureRequest.CONTROL_AF_TRIGGER_CANCEL);
-                cameraHolder.captureSessionHandler.SetParameterRepeating(CaptureRequest.CONTROL_AF_TRIGGER,
-                        CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
-            }
+        if (isContAutoFocus()) {
+            cameraUiWrapper.captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AF_TRIGGER,
+                    CaptureRequest.CONTROL_AF_TRIGGER_CANCEL);
         }
-    };
+        cameraUiWrapper.captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AF_TRIGGER,
+                CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
+        cameraUiWrapper.captureSessionHandler.StartRepeatingCaptureSession();
+    }
+
 
     @Override
-    public void internalFireOnWorkDone(File file)
+    public void internalFireOnWorkDone(BaseHolder file)
     {
-        fireOnWorkFinish(file);
+        Log.d(TAG, "internalFireOnWorkDone BurstCount:" + BurstCounter.getBurstCount() + " imageCount:" + BurstCounter.getImageCaptured());
+        if (isBurstCapture && BurstCounter.getBurstCount() >= BurstCounter.getImageCaptured()) {
+            filesSaved.add(file);
+            Log.d(TAG, "internalFireOnWorkDone Burst addFile");
+        }
+        if (isBurstCapture && BurstCounter.getBurstCount() == BurstCounter.getImageCaptured()) {
+            Log.d(TAG, "internalFireOnWorkDone Burst done");
+            fireOnWorkFinish(filesSaved.toArray(new BaseHolder[filesSaved.size()]));
+            filesSaved.clear();
+        } else if (!isBurstCapture)
+            fireOnWorkFinish(file);
     }
 
     @Override
-    public void fireOnWorkFinish(File[] files) {
+    public void fireOnWorkFinish(BaseHolder file) {
+            super.fireOnWorkFinish(file);
+    }
+
+    @Override
+    public void fireOnWorkFinish(BaseHolder[] files) {
+        Log.d(TAG,"fireOnWorkFinish[]");
         super.fireOnWorkFinish(files);
     }
 
     @Override
-    public void onRdyToSaveImg(ImageHolder holder) {
-        imageSaveQueue.remove(holder);
-        AsyncTask.THREAD_POOL_EXECUTOR.execute(holder.getRunner());
+    public void onRdyToSaveImg() {
         Log.d(TAG,"onRdyToSaveImg");
         finishCapture();
     }
+
+
 }

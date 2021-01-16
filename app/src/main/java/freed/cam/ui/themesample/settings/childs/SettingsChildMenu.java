@@ -31,9 +31,12 @@ import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
 import com.troop.freedcam.R.styleable;
 
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
 import freed.cam.apis.basecamera.parameters.ParameterInterface;
+import freed.cam.events.ValueChangedEvent;
 import freed.cam.ui.themesample.cameraui.childs.UiSettingsChild;
-import freed.utils.AppSettingsManager;
 
 /**
  * Created by troop on 14.06.2015.
@@ -43,6 +46,16 @@ public class SettingsChildMenu extends UiSettingsChild
     private TextView description;
 
     private TextView headerText;
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+    }
 
     public SettingsChildMenu(Context context) {
         super(context);
@@ -55,16 +68,15 @@ public class SettingsChildMenu extends UiSettingsChild
         description.setText(getResources().getText(descriptionid));
     }
 
-    public SettingsChildMenu(Context context, AppSettingsManager.SettingMode settingsMode, ParameterInterface parameter) {
-        super(context, settingsMode, parameter);
+    public SettingsChildMenu(Context context, ParameterInterface parameter) {
+        super(context, parameter);
     }
 
-    public SettingsChildMenu(Context context, AppSettingsManager.SettingMode settingsMode, ParameterInterface parameter, int headerid, int descriptionid)
+    public SettingsChildMenu(Context context, ParameterInterface parameter, int headerid, int descriptionid)
     {
-        super(context,settingsMode,parameter);
+        super(context,parameter);
         headerText.setText(getResources().getText(headerid));
         description.setText(getResources().getText(descriptionid));
-        valueText.setText(settingsMode.get());
     }
 
     public SettingsChildMenu(Context context, AttributeSet attrs) {
@@ -98,10 +110,10 @@ public class SettingsChildMenu extends UiSettingsChild
     protected void init(Context context) {
         LayoutInflater inflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         inflateTheme(inflater);
-        headerText = (TextView) findViewById(id.textview_menuitem_header);
-        valueText = (TextView) findViewById(id.textview_menuitem_header_value);
-        description = (TextView) findViewById(id.textview_menuitem_description);
-        LinearLayout toplayout = (LinearLayout) findViewById(id.menu_item_toplayout);
+        headerText = findViewById(id.textview_menuitem_header);
+        valueText = findViewById(id.textview_menuitem_header_value);
+        description = findViewById(id.textview_menuitem_description);
+        LinearLayout toplayout = findViewById(id.menu_item_toplayout);
         setOnClickListener(this);
     }
 
@@ -111,25 +123,16 @@ public class SettingsChildMenu extends UiSettingsChild
     }
 
     @Override
-    public void onStringValueChanged(String val) {
-        sendLog("Set Value to:" + val);
-        if (valueText != null)
-            valueText.setText(val);
-    }
-
-    @Override
     public void onClick(View v) {
         if (onItemClick != null)
             onItemClick.onSettingsChildClick(this, false);
     }
 
-    @Override
-    public void onIsSupportedChanged(boolean isSupported) {
-        sendLog("isSupported:" + isSupported);
-        if (isSupported) {
-            setVisibility(View.VISIBLE);
-        }
-        else
-            setVisibility(View.GONE);
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onStringValueChanged(ValueChangedEvent<String> value) {
+        if (value.type != String.class || parameter == null)
+            return;
+        if (value.key == parameter.getKey())
+            onStringValueChanged(value.newValue);
     }
 }

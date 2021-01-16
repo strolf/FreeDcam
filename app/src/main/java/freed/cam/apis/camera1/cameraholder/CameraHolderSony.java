@@ -7,6 +7,8 @@ import com.sonyericsson.cameraextension.CameraExtension;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.FocusEvents;
 import freed.cam.apis.camera1.CameraHolder;
+import freed.cam.events.CameraStateEvents;
+import freed.settings.Frameworks;
 import freed.utils.Log;
 
 /**
@@ -29,6 +31,7 @@ public class CameraHolderSony extends CameraHolder {
     @Override
     public boolean OpenCamera(int camera)
     {
+        boolean isRdy;
         try
         {
             Log.d(TAG, "open camera");
@@ -49,7 +52,7 @@ public class CameraHolderSony extends CameraHolder {
             isRdy = false;
             Log.WriteEx(ex);
         }
-        cameraUiWrapper.onCameraOpen("");
+        CameraStateEvents.fireCameraOpenEvent();
         return isRdy;
     }
 
@@ -69,30 +72,32 @@ public class CameraHolderSony extends CameraHolder {
         }
         finally {
             mCamera = null;
-            isRdy = false;
             Log.d(TAG, "Camera closed");
         }
-        isRdy = false;
-        cameraUiWrapper.onCameraClose("");
+        CameraStateEvents.fireCameraCloseEvent();
     }
 
     @Override
     public Camera.Parameters GetCameraParameters()
     {
         Camera.Parameters parameters = mCamera.getParameters();
-        sonyCameraExtension.fetchParameters(parameters);
+        try {
+            sonyCameraExtension.fetchParameters(parameters);
+        }
+        catch (NullPointerException ex)
+        {
+            parameters = mCamera.getParameters();
+        }
+
         return parameters;
     }
 
     @Override
     public void StartFocus(final FocusEvents autoFocusCallback) {
-        sonyCameraExtension.startAutoFocus(new CameraExtension.AutoFocusCallback() {
-            @Override
-            public void onAutoFocus(CameraExtension.AutoFocusResult autoFocusResult) {
-                if (autoFocusResult.isFocused())
-                    sonyCameraExtension.stopAutoFocus();
-                autoFocusCallback.onFocusEvent(autoFocusResult.isFocused());
-            }
+        sonyCameraExtension.startAutoFocus(autoFocusResult -> {
+            if (autoFocusResult.isFocused())
+                sonyCameraExtension.stopAutoFocus();
+            autoFocusCallback.onFocusEvent(autoFocusResult.isFocused());
         },true,true,true);
     }
 

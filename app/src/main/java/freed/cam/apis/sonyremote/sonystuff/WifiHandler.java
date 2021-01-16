@@ -2,10 +2,12 @@ package freed.cam.apis.sonyremote.sonystuff;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 
 import freed.ActivityInterface;
+import freed.FreedApplication;
 import freed.utils.Log;
-import freed.utils.PermissionHandler;
+import freed.utils.PermissionManager;
 
 /**
  * Created by troop on 12.01.2017.
@@ -29,7 +31,7 @@ public class WifiHandler extends WifiUtils {
 
 
     public WifiHandler(ActivityInterface activityInterface) {
-        super(activityInterface.getContext());
+        super(FreedApplication.getContext());
         this.activityInterface = activityInterface;
         mSsdpClient = new SimpleSsdpClient();
         uiHandler = new Handler(Looper.getMainLooper());
@@ -38,24 +40,21 @@ public class WifiHandler extends WifiUtils {
     public void onResume()
     {
         resumed = true;
-        if(activityInterface.getPermissionHandler().hasLocationPermission(null)) {
-            activityInterface.getPermissionHandler().hasWifiPermission(onLocationPermission);
+        if(activityInterface.getPermissionManager().isPermissionGranted(PermissionManager.Permissions.Location)) {
+            if (!activityInterface.getPermissionManager().isPermissionGranted(PermissionManager.Permissions.Wifi))
+                activityInterface.getPermissionManager().requestPermission(PermissionManager.Permissions.Wifi);
         }
-        else
+        else {
+            activityInterface.getPermissionManager().requestPermission(PermissionManager.Permissions.Location);
             sendMessage("Location Permission is needed to find the camera!");
+        }
     }
 
-    private PermissionHandler.PermissionCallback onLocationPermission = new PermissionHandler.PermissionCallback() {
-        @Override
-        public void permissionGranted(boolean granted) {
-            if (!granted)
-                return;
-        }
-    };
 
     public void onPause()
     {
         resumed = false;
+        uiHandler.removeCallbacksAndMessages(startLookupRunner);
     }
 
 
@@ -78,6 +77,8 @@ public class WifiHandler extends WifiUtils {
 
     public void StartLookUp()
     {
+        if (!resumed)
+            return;
         Log.d(TAG,"StartLookup");
         //check if Wifi is on and LocationService too, to lookup wifinetworks
         if (isWifiEnabled() && isLocationServiceEnabled())
@@ -120,7 +121,7 @@ public class WifiHandler extends WifiUtils {
                                 break;
                             }
                         }
-                        if (foundnet.equals(""))
+                        if (TextUtils.isEmpty(foundnet))
                         {
                             Log.d(TAG,"Not networkfound,Start Scan");
                             sendMessage("No Network found, Start Scan");
@@ -157,13 +158,13 @@ public class WifiHandler extends WifiUtils {
 
     private void postDelayed(int ms)
     {
-        uiHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                StartLookUp();
-            }
-        },ms);
+        uiHandler.postDelayed(startLookupRunner,ms);
     }
+
+    private Runnable startLookupRunner = () -> {
+        if (resumed)
+            StartLookUp();
+    };
 
     private void searchSSDPClient()
     {

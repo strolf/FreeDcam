@@ -23,9 +23,9 @@ import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
 
-import freed.ActivityInterface;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.sonyremote.SonyCameraRemoteFragment;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 13.06.2015.
@@ -43,23 +43,9 @@ public class UiSettingsChildCameraSwitch extends UiSettingsChild
     }
 
     @Override
-    protected void init(Context context) {
-        super.init(context);
-
-        setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                switchCamera();
-            }
-        });
-    }
-
-    @Override
-    public void SetStuff(ActivityInterface fragment_activityInterface, String settingvalue) {
-        super.SetStuff(fragment_activityInterface, settingvalue);
-
-        currentCamera = fragment_activityInterface.getAppSettings().GetCurrentCamera();
-        valueText.setText(getCamera(currentCamera));
+    public void onClick(View v) {
+        if (onItemClick != null)
+            onItemClick.onSettingsChildClick(this, fromleft);
     }
 
     public void SetCameraUiWrapper(CameraWrapperInterface cameraUiWrapper)
@@ -72,33 +58,53 @@ public class UiSettingsChildCameraSwitch extends UiSettingsChild
         else {
             setVisibility(View.VISIBLE);
         }
+        currentCamera = SettingsManager.getInstance().GetCurrentCamera();
+        valueText.setText(getCamera(currentCamera));
     }
+
+    @Override
+    public void SetValue(String value)
+    {
+        String[] split = value.split(" ");
+        currentCamera = Integer.parseInt(split[1]);
+        SettingsManager.getInstance().SetCurrentCamera(currentCamera);
+        cameraUiWrapper.restartCameraAsync();
+        valueText.setText(getCamera(currentCamera));
+    }
+
 
     private void switchCamera()
     {
-        int maxcams = cameraUiWrapper.getCameraHolder().CameraCout();
+        int maxcams = SettingsManager.getInstance().getCameraIds().length;
         if (currentCamera++ >= maxcams - 1)
             currentCamera = 0;
 
-        fragment_activityInterface.getAppSettings().SetCurrentCamera(currentCamera);
+        SettingsManager.getInstance().SetCurrentCamera(currentCamera);
         sendLog("Stop Preview and Camera");
-        cameraUiWrapper.restartCamera();
+        cameraUiWrapper.restartCameraAsync();
         valueText.setText(getCamera(currentCamera));
     }
 
     private String getCamera(int i)
     {
-        if (i == 0)
-            return "Back";
-        else if (i == 1)
-            return "Front";
+        if (SettingsManager.getInstance().getIsFrontCamera())
+            return "Front " + i;
         else
-            return "3D";
+            return "Back " + i;
     }
 
     @Override
     public String[] GetValues() {
-        return null;
+        int[] camids = SettingsManager.getInstance().getCameraIds();
+        String[] retarr = new String[camids.length];
+        for (int i = 0; i < camids.length; i++)
+        {
+            if (SettingsManager.getInstance().getCamIsFrontCamera(i))
+                retarr[i] = "Front "+i;
+            else
+                retarr[i] = "Back "+i;
+        }
+        return retarr;
     }
 
 

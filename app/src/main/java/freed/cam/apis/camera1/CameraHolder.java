@@ -19,58 +19,55 @@
 
 package freed.cam.apis.camera1;
 
-import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.hardware.Camera;
 import android.hardware.Camera.Area;
-import android.hardware.Camera.AutoFocusCallback;
 import android.hardware.Camera.Parameters;
 import android.hardware.Camera.PictureCallback;
-import android.hardware.Camera.PreviewCallback;
 import android.location.Location;
 import android.view.Surface;
-import android.view.SurfaceHolder;
+import android.view.TextureView;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
 import freed.cam.apis.basecamera.CameraHolderAbstract;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.FocusEvents;
-import freed.cam.apis.basecamera.Size;
+import freed.cam.events.CameraStateEvents;
+import freed.cam.ui.themesample.handler.UserMessageHandler;
+import freed.settings.Frameworks;
 import freed.utils.Log;
 
 /**
  * Created by troop on 15.08.2014.
  */
-public class CameraHolder extends CameraHolderAbstract
+public class CameraHolder extends CameraHolderAbstract implements CameraHolderInterfaceApi1
 {
-    //frame count that get attached to the camera when using focuspeak
-    final int BUFFERCOUNT = 3;
     //camera object
     protected Camera mCamera;
 
     private final String TAG = CameraHolder.class.getSimpleName();
     private Surface previewSurfaceHolder;
 
-    public Frameworks DeviceFrameWork = Frameworks.Normal;
+    public Frameworks DeviceFrameWork = Frameworks.Default;
     public int Orientation;
 
-    public int CurrentCamera;
+    private Method setPreviewSurfaceMethod;
 
-    public enum Frameworks
-    {
-        Normal,
-        LG,
-        MTK,
-        MotoX
-    }
 
     public CameraHolder(CameraWrapperInterface cameraUiWrapper, Frameworks frameworks)
     {
         super(cameraUiWrapper);
         DeviceFrameWork = frameworks;
+        try {
+            setPreviewSurfaceMethod = Camera.class.getMethod("setPreviewSurface",Surface.class);
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        }
 
     }
 
@@ -78,6 +75,11 @@ public class CameraHolder extends CameraHolderAbstract
     {
         Parameters p = mCamera.getParameters();
         return p.get(para);
+    }
+
+    public boolean canSetSurfaceDirect()
+    {
+        return setPreviewSurfaceMethod != null;
     }
 
     /**
@@ -92,14 +94,16 @@ public class CameraHolder extends CameraHolderAbstract
         {
             Log.d(TAG, "open camera");
             mCamera = Camera.open(camera);
-            isRdy = true;
-            cameraUiWrapper.onCameraOpen("");
+            mCamera.setErrorCallback((error, camera1) -> Log.e(TAG, "Error:" + error));
+            CameraStateEvents.fireCameraOpenEvent();
+            return true;
 
         } catch (Exception ex) {
-            isRdy = false;
             Log.WriteEx(ex);
+            if (mCamera != null)
+                mCamera.release();
         }
-        return isRdy;
+        return false;
     }
 
     @Override
@@ -117,23 +121,9 @@ public class CameraHolder extends CameraHolderAbstract
         }
         finally {
             mCamera = null;
-            isRdy = false;
             Log.d(TAG, "Camera closed");
         }
-        isRdy = false;
-        cameraUiWrapper.onCameraClose("");
-    }
-
-
-
-    @Override
-    public int CameraCout() {
-        return Camera.getNumberOfCameras();
-    }
-
-    @Override
-    public boolean IsRdy() {
-        return isRdy;
+        CameraStateEvents.fireCameraCloseEvent();
     }
 
     public void SetCameraParameters(Parameters parameters)
@@ -148,26 +138,38 @@ public class CameraHolder extends CameraHolderAbstract
 
     }
 
+
     @Override
-    public boolean SetSurface(SurfaceHolder surfaceHolder)
-    {
-        previewSurfaceHolder = surfaceHolder.getSurface();
-        try
-        {
-            if (isRdy && mCamera != null) {
-                mCamera.setPreviewDisplay(surfaceHolder);
+    public boolean setSurface(Surface texture) {
+        Log.d(TAG, "setSurface surface");
+        try {
+            if (mCamera != null) {
+                if (setPreviewSurfaceMethod != null) {
+                    setPreviewSurfaceMethod.setAccessible(true);
+                    setPreviewSurfaceMethod.invoke(mCamera, texture);
+                    setPreviewSurfaceMethod.setAccessible(false);
+                }
                 return true;
             }
-        } catch (IOException ex) {
-            Log.WriteEx(ex);
-            return false;
         }
         catch (NullPointerException ex)
         {
             Log.WriteEx(ex);
-            return false;
+        } catch (IllegalAccessException ex) {
+            Log.WriteEx(ex);
+        } catch (InvocationTargetException ex) {
+            Log.WriteEx(ex);
         }
         return false;
+    }
+
+    public void setTextureView(TextureView texturView)
+    {
+        try {
+            mCamera.setPreviewTexture(texturView.getSurfaceTexture());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -181,35 +183,33 @@ public class CameraHolder extends CameraHolderAbstract
     {
         if (mCamera == null)
         {
-            SendUIMessage("Failed to Start Preview, Camera is null");
+            UserMessageHandler.sendMSG("Failed to Start Preview, Camera is null",false);
             return;
         }
         try
         {
             mCamera.startPreview();
             Log.d(TAG, "PreviewStarted");
-            cameraUiWrapper.onPreviewOpen("");
-
+            CameraStateEvents.firePreviewOpenEvent();
         } catch (Exception ex) {
             Log.WriteEx(ex);
-            SendUIMessage("Failed to Start Preview");
+            UserMessageHandler.sendMSG("Failed to Start Preview",false);
         }
     }
 
     @Override
     public void StopPreview()
     {
+        Log.d(TAG, "Stop Preview");
         if (mCamera == null)
             return;
         try {
             mCamera.setPreviewCallback(null);
             mCamera.stopPreview();
             Log.d(TAG, "Preview Stopped");
-            cameraUiWrapper.onPreviewClose("");
-
+            CameraStateEvents.firePreviewCloseEvent();
         } catch (Exception ex)
         {
-            cameraUiWrapper.onPreviewClose("");
             Log.d(TAG, "Camera was released");
             Log.WriteEx(ex);
         }
@@ -217,7 +217,14 @@ public class CameraHolder extends CameraHolderAbstract
 
     public Parameters GetCameraParameters()
     {
-        return mCamera.getParameters();
+        try {
+            return mCamera.getParameters();
+        }catch (NullPointerException ex)
+        {
+            return null;
+        }
+
+
     }
 
     public void TakePicture(PictureCallback picture)
@@ -227,33 +234,13 @@ public class CameraHolder extends CameraHolderAbstract
         }
         catch (RuntimeException ex)
         {
-            SendUIMessage("Picture Taking failed, What a Terrible Failure!!");
+            UserMessageHandler.sendMSG("Picture Taking failed, What a Terrible Failure!!",false);
             Log.WriteEx(ex);
         }
     }
 
-    public void SetPreviewCallback(PreviewCallback previewCallback)
-    {
-        try {
-            if (!isRdy)
-                return;
-            Size s = new Size(cameraUiWrapper.getParameterHandler().PreviewSize.GetStringValue());
-            //Add 5 pre allocated buffers. that avoids that the camera create with each frame a new one
-            for (int i = 0; i< BUFFERCOUNT; i++)
-            {
-                mCamera.addCallbackBuffer(new byte[s.height * s.width *
-                        ImageFormat.getBitsPerPixel(ImageFormat.NV21) / 8]);
-            }
-            mCamera.setPreviewCallbackWithBuffer(previewCallback);
-        }
-        catch (NullPointerException ex)
-        {
-            Log.e(TAG,ex.getMessage());
-        }
 
-    }
-
-    public void ResetPreviewCallback()
+    public void resetPreviewCallback()
     {
         try {
             mCamera.setPreviewCallbackWithBuffer(null);
@@ -262,24 +249,25 @@ public class CameraHolder extends CameraHolderAbstract
         {
             Log.e(TAG,ex.getMessage());
         }
+        catch (RuntimeException ex)
+        {
+            Log.d(TAG, "Camera was released");
+            Log.WriteEx(ex);
+        }
 
     }
 
     public void StartFocus(final FocusEvents autoFocusCallback)
     {
-        if (!isRdy)
+        if (mCamera == null)
             return;
         try {
-            mCamera.autoFocus(new AutoFocusCallback() {
-                @Override
-                public void onAutoFocus(boolean success, Camera camera)
-                {
-                    if (mCamera == null)
-                        return;
-                    if (success)
-                        mCamera.cancelAutoFocus();
-                    autoFocusCallback.onFocusEvent(success);
-                }
+            mCamera.autoFocus((success, camera) -> {
+                if (mCamera == null)
+                    return;
+                if (success)
+                    mCamera.cancelAutoFocus();
+                autoFocusCallback.onFocusEvent(success);
             });
         } catch (Exception ex)
         {
@@ -290,7 +278,7 @@ public class CameraHolder extends CameraHolderAbstract
 
     public void CancelFocus()
     {
-        if (!isRdy)
+        if (mCamera == null)
             return;
         mCamera.cancelAutoFocus();
     }
@@ -323,9 +311,6 @@ public class CameraHolder extends CameraHolderAbstract
     @Override
     public void SetLocation(Location loc)
     {
-        if(!isRdy)
-            return;
-
         if (mCamera != null && loc != null) {
             Parameters paras = mCamera.getParameters();
             if (loc.hasAltitude())
@@ -333,25 +318,21 @@ public class CameraHolder extends CameraHolderAbstract
             paras.setGpsLatitude(loc.getLatitude());
             paras.setGpsLongitude(loc.getLongitude());
             paras.setGpsProcessingMethod(loc.getProvider());
-            paras.setGpsTimestamp(loc.getTime());
+            paras.setGpsTimestamp(loc.getTime()/1000);
             try {
                 mCamera.setParameters(paras);
             }
             catch (RuntimeException ex)
             {
-                SendUIMessage("Set Location failed");
+                UserMessageHandler.sendMSG("Set Location failed",false);
+
             }
         }
     }
 
-    @Override
-    public void StartFocus() {
-        cameraUiWrapper.getFocusHandler().StartFocus();
-    }
-
     public void SetCameraRotation(int rotation)
     {
-        if (!isRdy)
+        if (mCamera == null)
             return;
         mCamera.setDisplayOrientation(rotation);
     }

@@ -21,42 +21,35 @@ package freed.viewer.helper;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.BitmapFactory.Options;
 import android.media.ThumbnailUtils;
-import android.provider.MediaStore.Video.Thumbnails;
 
-import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 
-import freed.cam.apis.basecamera.modules.I_WorkEvent;
-import freed.jni.RawUtils;
+import freed.file.holder.BaseHolder;
 import freed.utils.Log;
 import freed.utils.StringUtils.FileEnding;
-import freed.viewer.holder.FileHolder;
 
 /**
  * Created by troop on 09.03.2016.
  */
 public class BitmapHelper
 {
+    private static final String TAG = BitmapHelper.class.getSimpleName();
     private CacheHelper CACHE;
     private int mImageThumbSizeW;
-    private I_WorkEvent done;
+    private Context context;
 
 
-    public BitmapHelper(Context context, int mImageThumbSizeW, I_WorkEvent done)
+    public BitmapHelper(Context context, int mImageThumbSizeW)
     {
+        this.context = context;
         CACHE = new CacheHelper(context);
         this.mImageThumbSizeW = mImageThumbSizeW;
-        this.done = done;
     }
 
-    public void SetWorkDoneListner(I_WorkEvent event)
-    {
-        this.done = event;
-    }
-
-    public Bitmap getBitmap(final FileHolder file, boolean thumb)
+    public Bitmap getBitmap(final BaseHolder file, boolean thumb)
     {
         Bitmap response = null;
         try {
@@ -66,7 +59,7 @@ public class BitmapHelper
             response = getCacheBitmap(file,thumb);
             if (response == null)
             {
-                response = createCacheImage(file.getFile(),thumb);
+                response = createCacheImage(file,thumb);
             }
 
         } catch (NullPointerException e) {
@@ -75,26 +68,34 @@ public class BitmapHelper
         return  response;
     }
 
-    public Bitmap getCacheBitmap(final FileHolder file, boolean thumb)
+    public Bitmap getCacheBitmap(final BaseHolder file, boolean thumb)
     {
+
         Bitmap response = null;
+
         try {
             if (CACHE == null)
                 return null;
-            response = null;
+            if (!file.exists()) {
+                response = CACHE.getBitmapFromDiskCache(file.getName() + "_thumb");
+                if (response != null)
+                    DeleteCache(file.getName());
+                return null;
+            }
             if (thumb)
             {
                 if (response == null)
                 {
-                    response = CACHE.getBitmapFromDiskCache(file.getFile().getName() + "_thumb");
+                    response = CACHE.getBitmapFromDiskCache(file.getName() + "_thumb");
                 }
             }
             else
             {
                 if (response == null) {
-                    response = CACHE.getBitmapFromDiskCache(file.getFile().getName());
+                    response = CACHE.getBitmapFromDiskCache(file.getName());
                 }
             }
+
 
         } catch (NullPointerException e) {
             Log.WriteEx(e);
@@ -102,37 +103,56 @@ public class BitmapHelper
         return  response;
     }
 
-    public  void DeleteCache(File file)
+    public  void DeleteCache(String name)
     {
         if (CACHE == null)
             return;
-        CACHE.deleteFileFromDiskCache(file.getName());
-        CACHE.deleteFileFromDiskCache(file.getName()+"_thumb");
+        CACHE.deleteFileFromDiskCache(name);
+        CACHE.deleteFileFromDiskCache(name+"_thumb");
     }
 
-    private Bitmap createCacheImage(File file, boolean thumb)
+    private Bitmap createCacheImage(BaseHolder file, boolean thumb)
     {
         Bitmap response = null;
-        if (response == null && file.exists())
+        if (!file.exists())
+            return response;
+        if (response == null && file.getName() !=null)
         {
-            if (file.getAbsolutePath().toLowerCase().endsWith(FileEnding.JPG) || file.getAbsolutePath().toLowerCase().endsWith(FileEnding.JPS))
+            if (file.getName().toLowerCase().endsWith(FileEnding.JPG) ||
+                    file.getName().toLowerCase().endsWith(FileEnding.JPS)
+                    )
             {
                 Options options = new Options();
                 options.inSampleSize = 2;
-                response = BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+                response = file.getBitmap(context,options);
             }
-            else if (file.getAbsolutePath().toLowerCase().endsWith(FileEnding.MP4))
-                response = ThumbnailUtils.createVideoThumbnail(file.getAbsolutePath(), Thumbnails.FULL_SCREEN_KIND);
-            else if (file.getAbsolutePath().toLowerCase().endsWith(FileEnding.DNG)
-                    || file.getAbsolutePath().toLowerCase().endsWith(FileEnding.RAW) || file.getAbsolutePath().toLowerCase().endsWith(FileEnding.BAYER))
-            {
+            else if (file.getName().toLowerCase().endsWith(FileEnding.MP4)) {
                 try {
-                    response = new RawUtils().UnPackRAW(file.getAbsolutePath());
+                    response = file.getVideoThumb(context);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                //
+            }
+            else if (file.getName().toLowerCase().endsWith(FileEnding.DNG)
+                    || file.getName().toLowerCase().endsWith(FileEnding.RAW) || file.getName().toLowerCase().endsWith(FileEnding.BAYER))
+            {
+
+                try {
+                    response = file.getBitmapFromDng(context);
                 }
                 catch (IllegalArgumentException ex)
                 {
                     Log.WriteEx(ex);
 
+                }catch (UnsatisfiedLinkError ex)
+                {
+                    Log.WriteEx(ex);
+
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
             if (response != null && CACHE != null)
@@ -148,6 +168,10 @@ public class BitmapHelper
                     thumbbitmap.recycle();
 
             }
+        }
+        else
+        {
+            Log.e(TAG, "failed to get file name");
         }
         return response;
     }

@@ -19,6 +19,8 @@
 
 package freed.cam.apis.sonyremote.parameters.manual;
 
+import android.text.TextUtils;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -34,6 +36,7 @@ import freed.cam.apis.sonyremote.parameters.ParameterHandler;
 import freed.cam.apis.sonyremote.parameters.modes.I_SonyApi;
 import freed.cam.apis.sonyremote.sonystuff.JsonUtils;
 import freed.cam.apis.sonyremote.sonystuff.SimpleRemoteApi;
+import freed.settings.SettingKeys;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
 
@@ -47,21 +50,19 @@ public class BaseManualParameterSony extends AbstractParameter implements I_Sony
     protected String VALUE_TO_SET;
     protected SimpleRemoteApi mRemoteApi;
     protected Set<String> mAvailableCameraApiSet;
-    boolean isSupported;
-    boolean isSetSupported;
     String value;
     final boolean logging =false;
 
     private final String TAG = BaseManualParameterSony.class.getSimpleName();
 
-    public BaseManualParameterSony(String VALUE_TO_GET, String VALUES_TO_GET, String VALUE_TO_SET, CameraWrapperInterface cameraUiWrapper)
+    public BaseManualParameterSony(String VALUE_TO_GET, String VALUES_TO_GET, String VALUE_TO_SET, CameraWrapperInterface cameraUiWrapper, SettingKeys.Key key)
     {
-        super(cameraUiWrapper);
+        super(cameraUiWrapper,key);
         this.VALUE_TO_GET = VALUE_TO_GET;
         this.VALUES_TO_GET = VALUES_TO_GET;
         this.VALUE_TO_SET = VALUE_TO_SET;
         mRemoteApi = ((ParameterHandler)cameraUiWrapper.getParameterHandler()).mRemoteApi;
-        addEventListner(this);
+        //addEventListner(this);
 
     }
 
@@ -69,59 +70,40 @@ public class BaseManualParameterSony extends AbstractParameter implements I_Sony
     @Override
     public void SonyApiChanged(Set<String> mAvailableCameraApiSet)
     {
+        boolean isSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_GET, mAvailableCameraApiSet);
+        boolean isSetSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet);
+        boolean isGetValuesSupported =  JsonUtils.isCameraApiAvailable(VALUES_TO_GET, mAvailableCameraApiSet);
         this.mAvailableCameraApiSet = mAvailableCameraApiSet;
-        if (isSupported != JsonUtils.isCameraApiAvailable(VALUE_TO_GET, mAvailableCameraApiSet))
-        {
-            isSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_GET, mAvailableCameraApiSet);
+
+        if ((isSupported || isGetValuesSupported) && isSetSupported) {
+            getStringValues();
+            setViewState(ViewState.Visible);
         }
-        fireIsSupportedChanged(isSupported);
-        fireIsReadOnlyChanged(false);
-        if (isSetSupported != JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet))
-        {
-            isSetSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet);
-        }
-        fireIsReadOnlyChanged(isSetSupported);
-    }
-
-    @Override
-    public boolean IsSupported()
-    {
-        return isSupported;
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return isSetSupported;
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return isSupported;
+        else if (isSupported && !isSetSupported)
+            setViewState(ViewState.Disabled);
+        else
+            setViewState(ViewState.Hidden);
+        Log.d(TAG, "SonyApiCHanged setViewState for " + VALUE_TO_GET +" isDisabled: " + isSupported + " isVisible: " + isSetSupported );
     }
 
     public String[] getStringValues()
     {
         if (stringvalues == null)
         {
-            FreeDPool.Execute(new Runnable()
-            {
-                @Override
-                public void run()
+            FreeDPool.Execute(() -> {
+                try
                 {
-                    try
-                    {
-                        sendLog("Trying to get String Values from: " + VALUES_TO_GET);
-                        JSONObject object = mRemoteApi.getParameterFromCamera(VALUES_TO_GET);
-                        JSONArray array = object.getJSONArray("result");
-                        JSONArray subarray = array.getJSONArray(1);
-                        stringvalues = JsonUtils.ConvertJSONArrayToStringArray(subarray);
-                        fireStringValuesChanged(stringvalues);
+                    sendLog("Trying to get String Values from: " + VALUES_TO_GET);
+                    JSONObject object = mRemoteApi.getParameterFromCamera(VALUES_TO_GET);
+                    JSONArray array = object.getJSONArray("result");
+                    JSONArray subarray = array.getJSONArray(1);
+                    stringvalues = JsonUtils.ConvertJSONArrayToStringArray(subarray);
+                    fireStringValuesChanged(stringvalues);
 
-                    } catch (IOException | JSONException ex) {
-                        Log.WriteEx(ex);
-                        sendLog( "Error Trying to get String Values from: " + VALUES_TO_GET);
-                        stringvalues = new String[0];
-                    }
+                } catch (IOException | JSONException ex) {
+                    Log.WriteEx(ex);
+                    sendLog( "Error Trying to get String Values from: " + VALUES_TO_GET);
+                    stringvalues = new String[0];
                 }
             });
         }
@@ -132,39 +114,30 @@ public class BaseManualParameterSony extends AbstractParameter implements I_Sony
 
 
     @Override
-    public void SetValue(final int valueToSet)
+    public void SetValue(final int valueToSet, boolean setToCamera)
     {
         sendLog("Set Value to " + valueToSet);
         currentInt = valueToSet;
-        FreeDPool.Execute(new Runnable() {
-            @Override
-            public void run()
-            {
-                if (valueToSet >= stringvalues.length || valueToSet < 0)
-                    return;
-                String val = stringvalues[valueToSet];
-                value = val;
-                JSONArray array = null;
-                try {
-                    array = new JSONArray().put(0, val);
-                    JSONObject object = mRemoteApi.setParameterToCamera(VALUE_TO_SET, array);
-                    fireIntValueChanged(valueToSet);
-                } catch (JSONException | IOException ex) {
-                    Log.WriteEx(ex);
-                }
+        FreeDPool.Execute(() -> {
+            if (valueToSet >= stringvalues.length || valueToSet < 0)
+                return;
+            String val = stringvalues[valueToSet];
+            value = val;
+            JSONArray array = null;
+            try {
+                array = new JSONArray().put(0, val);
+                JSONObject object = mRemoteApi.setParameterToCamera(VALUE_TO_SET, array);
+                fireIntValueChanged(valueToSet);
+            } catch (JSONException | IOException ex) {
+                Log.WriteEx(ex);
             }
         });
-    }
-
-    @Override
-    public void SetValue(String valueToSet, boolean setToCamera) {
-
     }
 
     public String GetStringValue()
     {
         sendLog("GetStringValue");
-        if (value == null || value.equals("")) {
+        if (value == null || TextUtils.isEmpty(value)) {
             if (stringvalues == null) {
                 stringvalues = getStringValues();
 
@@ -183,15 +156,8 @@ public class BaseManualParameterSony extends AbstractParameter implements I_Sony
 
 
     @Override
-    public void onIsSupportedChanged(boolean value)
-    {
-        isSupported = value;
-    }
+    public void onViewStateChanged(ViewState value) {
 
-    @Override
-    public void onIsSetSupportedChanged(boolean value)
-    {
-        isSetSupported = value;
     }
 
     @Override

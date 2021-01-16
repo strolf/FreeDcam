@@ -23,9 +23,8 @@ import android.animation.Animator;
 import android.animation.Animator.AnimatorListener;
 import android.content.Context;
 import android.graphics.Color;
-import android.graphics.PorterDuff.Mode;
-import android.os.Handler;
-import android.support.annotation.Nullable;
+import android.graphics.PorterDuff;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
@@ -35,116 +34,156 @@ import android.widget.TextView;
 import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
 
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 
 import freed.ActivityInterface;
-import freed.cam.apis.basecamera.parameters.ParameterEvents;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.ParameterInterface;
-import freed.cam.apis.sonyremote.parameters.manual.BaseManualParameterSony;
-import freed.utils.AppSettingsManager;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.ValueChangedEvent;
 import freed.utils.Log;
+
 
 /**
  * Created by troop on 08.12.2015.
  */
-public class ManualButton extends LinearLayout implements ParameterEvents
+public class ManualButton extends LinearLayout
 {
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onViewStateChanged(ValueChangedEvent<AbstractParameter.ViewState> viewStateValueChangedEvent)
+    {
+        if (viewStateValueChangedEvent.type != AbstractParameter.ViewState.class)
+            return;
+        if (viewStateValueChangedEvent.key == parameter.getKey())
+        {
+            AbstractParameter.ViewState state = viewStateValueChangedEvent.newValue;
+            applyViewState(state);
+        }
+    }
+
+    private void applyViewState(AbstractParameter.ViewState state) {
+        Log.d(TAG, "applyViewState for " +parameter.getKey().toString() + " " + state.toString() );
+        switch (state)
+        {
+            case Enabled:
+                ManualButton.this.setVisibility(VISIBLE);
+                ManualButton.this.setEnabled(true);
+                if (imageView != null)
+                    imageView.setColorFilter(Color.TRANSPARENT, PorterDuff.Mode.SRC_ATOP);
+                break;
+            case Disabled:
+                ManualButton.this.setVisibility(VISIBLE);
+                ManualButton.this.setEnabled(false);
+                if (imageView != null)
+                    imageView.setColorFilter(Color.GRAY, PorterDuff.Mode.SRC_ATOP);
+                break;
+            case Visible:
+                ManualButton.this.setVisibility(View.VISIBLE);
+                ManualButton.this.setEnabled(true);
+                if (imageView != null)
+                    imageView.setColorFilter(Color.TRANSPARENT, PorterDuff.Mode.SRC_ATOP);
+                break;
+            case Hidden:
+                ManualButton.this.setVisibility(View.GONE);
+                break;
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onIntValueChanged(ValueChangedEvent<Integer> current)
+    {
+        if (current.type != Integer.class)
+            return;
+        if (current.key == parameter.getKey()) {
+            pos = current.newValue;
+            Log.d(TAG, "onIntValueChanged current:" + current + " pos:" + pos);
+            String txt = getStringValue(current.newValue);
+            if (txt != null && !TextUtils.isEmpty(txt) && !txt.equals("null"))
+                valueTextView.setText(txt);
+            else
+                valueTextView.setText(String.valueOf(current.newValue));
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onValuesChanged(ValueChangedEvent<String[]> values) {
+        if (values.type != String[].class)
+            return;
+        if (values.key == parameter.getKey()) {
+            parameterValues = values.newValue;
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onStringValueChanged(ValueChangedEvent<String> value) {
+        if (value.type != String.class)
+            return;
+        if (value.key == parameter.getKey())
+            valueTextView.setText(value.newValue);
+    }
 
     private final String TAG = ManualButton.class.getSimpleName();
     private String[] parameterValues;
-    private ParameterInterface parameter;
-    private TextView valueTextView;
+    protected ParameterInterface parameter;
+    protected TextView valueTextView;
     private ImageView imageView;
-    private Handler handler;
     private final int backgroundColorActive = Color.parseColor("#46FFFFFF");
     private final int backgroundColor = Color.parseColor("#00000000");
-    private final int stringColor = Color.parseColor("#FFFFFFFF");
-    private final int stringColorActive = Color.parseColor("#FF000000");
     private int pos;
     protected ActivityInterface fragment_activityInterface;
-    private AppSettingsManager.SettingMode settingMode;
 
-    private final BlockingQueue<Integer> valueQueue = new ArrayBlockingQueue<>(3);
-
-    public ManualButton(Context context, AppSettingsManager.SettingMode settingMode, ParameterInterface parameter, int drawableImg)
+    public ManualButton(Context context, ParameterInterface parameter, int drawableImg)
     {
         super(context);
         init(context);
-        this.settingMode = settingMode;
         SetManualParameter(parameter);
         imageView.setImageDrawable(getResources().getDrawable(drawableImg));
     }
 
     private void init(Context context)
     {
-        handler = new Handler();
         LayoutInflater inflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         inflater.inflate(layout.cameraui_manualbutton, this);
-        valueTextView = (TextView) findViewById(id.manualbutton_valuetext);
+        valueTextView = findViewById(id.manualbutton_valuetext);
         valueTextView.setSelected(true);
-        imageView = (ImageView) findViewById(id.imageView_ManualButton);
+        imageView = findViewById(id.imageView_ManualButton);
     }
 
-    public void RemoveParameterListner( ParameterEvents t)
-    {
-        parameter.removeEventListner(t);
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        EventBusHelper.register(this);
     }
 
-    public void SetParameterListner( ParameterEvents t)
-    {
-        parameter.addEventListner(t);
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        EventBusHelper.unregister(this);
     }
 
-    public void SetManualParameter(@Nullable ParameterInterface parameter)
+
+    public void SetManualParameter(ParameterInterface parameter)
     {
         this.parameter = parameter;
         if (parameter != null) {
-            parameter.addEventListner(this);
-            if (parameter.IsSupported())
-            {
-                String txt = parameter.GetStringValue();
-                if (valueTextView != null) {
-                    if (txt != null && !txt.equals(""))
-                        valueTextView.setText(txt);
-                    else
-                        valueTextView.setText(parameter.GetValue() + "");
-                }
 
-                onIsSupportedChanged(parameter.IsVisible());
-                onIsSetSupportedChanged(parameter.IsSetSupported());
-                createStringParametersStrings(parameter);
-
+            String txt = parameter.GetStringValue();
+            if (valueTextView != null) {
+                if (txt != null && !TextUtils.isEmpty(txt))
+                    valueTextView.setText(txt);
+                else
+                    valueTextView.setText(parameter.GetValue() + "");
             }
-            else
-                onIsSupportedChanged(false);
+            createStringParametersStrings(parameter);
+
         }
-        else
-            onIsSupportedChanged(false);
+        applyViewState(parameter.getViewState());
 
     }
 
     private void createStringParametersStrings(ParameterInterface parameter) {
         parameterValues = parameter.getStringValues();
-    }
-
-
-
-    @Override
-    public void onIsSupportedChanged(final boolean value) {
-        post(new Runnable() {
-            @Override
-            public void run() {
-                if (value) {
-                    setVisibility(View.VISIBLE);
-                    animate().setListener(null).scaleX(1f).setDuration(300);
-                }
-                else
-                {
-                    animate().setListener(hideListner).scaleX(0f).setDuration(300);
-                }
-            }
-        });
     }
 
     private final AnimatorListener hideListner = new AnimatorListener() {
@@ -169,64 +208,6 @@ public class ManualButton extends LinearLayout implements ParameterEvents
         }
     };
 
-    @Override
-    public void onIsSetSupportedChanged(final boolean value) {
-        post(new Runnable() {
-            @Override
-            public void run() {
-                if (value) {
-                    setEnabled(true);
-                    imageView.getDrawable().setColorFilter(Color.TRANSPARENT, Mode.SRC_ATOP);
-                } else {
-                    setEnabled(false);
-                    imageView.getDrawable().setColorFilter(Color.GRAY, Mode.SRC_ATOP);
-                }
-            }
-        });
-    }
-
-
-    @Override
-    public void onIntValueChanged(int current)
-    {
-
-        pos = current;
-
-        Log.d(TAG, "onIntValueChanged current:"+current +" pos:" + pos);
-        setTextValue(current);
-    }
-
-    @Override
-    public void onValuesChanged(String[] values) {
-        parameterValues = values;
-    }
-
-    @Override
-    public void onStringValueChanged(final String value) {
-        valueTextView.post(new Runnable() {
-            @Override
-            public void run() {
-                valueTextView.setText(value);
-            }
-        });
-    }
-
-    private void setTextValue(final int current)
-    {
-        valueTextView.post(new Runnable() {
-            @Override
-            public void run() {
-                String txt = getStringValue(current);
-                if (txt != null && !txt.equals("") && !txt.equals("null"))
-                    valueTextView.setText(txt);
-                else
-                    valueTextView.setText(current+"");
-                Log.d(TAG, "setTextValue:" + valueTextView.getText());
-            }
-        });
-
-    }
-
     private String getStringValue(int pos)
     {
         if (parameterValues != null && parameterValues.length > 0)
@@ -244,7 +225,7 @@ public class ManualButton extends LinearLayout implements ParameterEvents
 
     public String[] getStringValues()
     {
-        if (parameterValues == null)
+        if (parameterValues == null || parameterValues.length ==0)
             createStringParametersStrings(parameter);
         return parameterValues;
     }
@@ -254,47 +235,10 @@ public class ManualButton extends LinearLayout implements ParameterEvents
         return parameter.GetValue();
     }
 
-    public void setValueToParameters(int value)
+    public void setValueToParameters(final int value)
     {
-        if (valueQueue.size() == 3)
-            valueQueue.remove();
-        //Log.d(TAG, "add to queue:" + value);
-        valueQueue.add(value);
+        parameter.SetValue(value, true);
 
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                //setparameter();
-                while (valueQueue.size() >= 1) {
-                    setparameter();
-
-                }
-
-            }
-        });
-
-
-    }
-
-    private void setparameter()
-    {
-        boolean currentlysettingsparameter = true;
-        int runValue = 0;
-        try {
-            runValue = valueQueue.take();
-
-        } catch (InterruptedException e) {
-            Log.WriteEx(e);
-            currentlysettingsparameter = false;
-        }
-        pos = runValue;
-        if (runValue < 0 || runValue > parameterValues.length -1)
-            return;
-        parameter.SetValue(runValue);
-        if (!(parameter instanceof BaseManualParameterSony) && settingMode != null) {
-            settingMode.set(String.valueOf(runValue));
-        }
-        currentlysettingsparameter = false;
     }
 
     public void SetActive(boolean active) {

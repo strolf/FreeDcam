@@ -26,6 +26,9 @@ import com.troop.freedcam.R;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.Camera1Fragment;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.cam.apis.camera2.Camera2Fragment;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 21.07.2015.
@@ -41,32 +44,25 @@ public class SettingsChildMenuOrientationHack extends SettingsChildMenu
     public void SetCameraUIWrapper(CameraWrapperInterface cameraUiWrapper)
     {
         this.cameraUiWrapper = cameraUiWrapper;
-        if (fragment_activityInterface.getAppSettings().orientationhack.getBoolean())
-            onStringValueChanged(getResources().getString(R.string.on_));
-        else
-            onStringValueChanged(getResources().getString(R.string.off_));
+        onStringValueChanged(SettingsManager.get(SettingKeys.orientationHack).get());
     }
 
     @Override
     public String[] GetValues() {
-        return new String[] {getResources().getString(R.string.on_), getResources().getString(R.string.off_)};
+        return SettingsManager.get(SettingKeys.orientationHack).getValues();
     }
 
     @Override
     public void SetValue(String value)
     {
-        if (value.equals(fragment_activityInterface.getAppSettings().getResString(R.string.on)))
-            fragment_activityInterface.getAppSettings().orientationhack.setBoolean(true);
-        else
-            fragment_activityInterface.getAppSettings().orientationhack.setBoolean(false);
+        SettingsManager.get(SettingKeys.orientationHack).set(value);
         if (cameraUiWrapper instanceof Camera1Fragment) {
             ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetCameraRotation();
             cameraUiWrapper.getParameterHandler().SetPictureOrientation(0);
         }
-        else if(cameraUiWrapper instanceof Camera1Fragment)
+        else if(cameraUiWrapper instanceof Camera2Fragment)
         {
-            ((Camera1Fragment) cameraUiWrapper).cameraHolder.StopPreview();
-            ((Camera1Fragment) cameraUiWrapper).cameraHolder.StartPreview();
+            cameraUiWrapper.restartCameraAsync();
 
         }
         onStringValueChanged(value);

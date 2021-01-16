@@ -19,29 +19,21 @@
 
 package freed.cam.apis.basecamera.parameters;
 
+import freed.cam.events.EventBusLifeCycle;
+import freed.settings.SettingKeys;
+
 /**
  * Created by troop on 01.09.2014.
  * This class represent the basic ManualPrameter that get used in ManualcameraFragment
  */
-public interface ParameterInterface
+public interface ParameterInterface extends EventBusLifeCycle
 {
-    /**
-     * State of the parameter if its is supported
-     * @return true when supported, false when not
-     */
-    boolean IsSupported();
 
-    /**
-     * State of the parameter if its read only
-     * @return true when it can get set. false when its read only
-     */
-    boolean IsSetSupported();
+    AbstractParameter.ViewState getViewState();
 
-    /**
-     * state of the parameter if its visible to the ui
-     * @return true when its should be visible to the ui
-     */
-    boolean IsVisible();
+    void setViewState(AbstractParameter.ViewState state);
+
+    SettingKeys.Key getKey();
 
     /**
      * the current int value from the String array
@@ -64,8 +56,9 @@ public interface ParameterInterface
     /**
      * Set the int value to the parameters
      * @param valueToSet the int value to set
+     * @param setToCamera
      */
-    void SetValue(int valueToSet);
+    void SetValue(int valueToSet, boolean setToCamera);
 
     /**
      *
@@ -73,18 +66,6 @@ public interface ParameterInterface
      * @param setToCamera not needed anymore?
      */
     void SetValue(String valueToSet, boolean setToCamera);
-
-    /**
-     * add a listner to listne to background changes applied to the parameters
-     * @param eventListner to notify when something got changed in background
-     */
-    void addEventListner(ParameterEvents eventListner);
-
-    /**
-     * remove the listner
-     * @param eventListner to remove
-     */
-    void removeEventListner(ParameterEvents eventListner);
 
     /**
      * notify the listners that the int value has changed in background
@@ -102,13 +83,8 @@ public interface ParameterInterface
      * notfiy the listners that the parameter support state got changed
      * @param value
      */
-    void fireIsSupportedChanged(boolean value);
+    void fireViewStateChanged(AbstractParameter.ViewState value);
 
-    /**
-     * notify the listners that the parameter can get written or is read only
-     * @param value when true its writeable, false its read only
-     */
-    void fireIsReadOnlyChanged(boolean value);
 
     /**
      * notify the listners that string values have changed

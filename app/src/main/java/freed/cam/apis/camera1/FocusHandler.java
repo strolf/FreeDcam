@@ -20,23 +20,31 @@
 package freed.cam.apis.camera1;
 
 import android.graphics.Rect;
-import android.view.MotionEvent;
+
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 
 import freed.cam.apis.basecamera.AbstractFocusHandler;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.FocusEvents;
-import freed.cam.apis.basecamera.parameters.ParameterEvents;
-import freed.cam.apis.camera1.CameraHolder.Frameworks;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.EventBusLifeCycle;
+import freed.cam.events.ValueChangedEvent;
+import freed.settings.Frameworks;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
  * Created by troop on 02.09.2014.
  */
-public class FocusHandler extends AbstractFocusHandler implements FocusEvents
+public class FocusHandler extends AbstractFocusHandler implements FocusEvents, EventBusLifeCycle
 {
     final String TAG = FocusHandler.class.getSimpleName();
     private boolean aeMeteringSupported;
-    private boolean isFocusing;
+    private boolean isTouchSupported;
+
+
 
 
     public FocusHandler(CameraWrapperInterface cameraUiWrapper)
@@ -44,73 +52,38 @@ public class FocusHandler extends AbstractFocusHandler implements FocusEvents
         super(cameraUiWrapper);
     }
 
-    public ParameterEvents focusModeListner = new ParameterEvents() {
-        @Override
-        public void onIsSupportedChanged(boolean value) {
+    @Override
+    public void startListning() {
+        EventBusHelper.register(this);
+    }
 
-        }
+    @Override
+    public void stopListning() {
+        EventBusHelper.unregister(this);
+    }
 
-        @Override
-        public void onIsSetSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIntValueChanged(int current) {
-
-        }
-
-        @Override
-        public void onValuesChanged(String[] values) {
-
-        }
-
-        @Override
-        public void onStringValueChanged(String val) {
-            if (((CameraHolder) cameraUiWrapper.getCameraHolder()).DeviceFrameWork != Frameworks.MTK) {
-                if (val.equals("auto") || val.equals("macro") || val.equals("touch")) {
-                    if (focusEvent != null)
-                        focusEvent.TouchToFocusSupported(true);
-                } else {
-                    if (focusEvent != null)
-                        focusEvent.TouchToFocusSupported(false);
-                }
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onStringValueChanged(ValueChangedEvent<String> valueChangedEvent)
+    {
+        if (valueChangedEvent.key == SettingKeys.FocusMode && valueChangedEvent.type == String.class)
+        {
+            if (SettingsManager.getInstance().getFrameWork() != Frameworks.MTK) {
+                isTouchSupported = valueChangedEvent.newValue.equals("auto") || valueChangedEvent.newValue.equals("macro") || valueChangedEvent.newValue.equals("touch");
+                if (focusEvent != null)
+                    focusEvent.TouchToFocusSupported(isTouchSupported);
             }
             else {
                 if (focusEvent != null) {
                     aeMeteringSupported = true;
-                    focusEvent.AEMeteringSupported(true);
+                    focusEvent.TouchToFocusSupported(true);
                 }
             }
         }
-    };
-
-    public ParameterEvents aeModeListner = new ParameterEvents() {
-        @Override
-        public void onIsSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIsSetSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIntValueChanged(int current) {
-
-        }
-
-        @Override
-        public void onValuesChanged(String[] values) {
-
-        }
-
-        @Override
-        public void onStringValueChanged(String val) {
-            if(((CameraHolder) cameraUiWrapper.getCameraHolder()).DeviceFrameWork != Frameworks.MTK)
+        else if (valueChangedEvent.key == SettingKeys.ExposureMode && valueChangedEvent.type == String.class)
+        {
+            if(SettingsManager.getInstance().getFrameWork() != Frameworks.MTK)
             {
-                if (val.contains("spot")) {
+                if (valueChangedEvent.newValue.contains("spot")) {
                     if (focusEvent != null) {
                         aeMeteringSupported = true;
                         focusEvent.AEMeteringSupported(true);
@@ -130,7 +103,8 @@ public class FocusHandler extends AbstractFocusHandler implements FocusEvents
                 }
             }
         }
-    };
+    }
+
 
     @Override
     public boolean isAeMeteringSupported()
@@ -139,14 +113,13 @@ public class FocusHandler extends AbstractFocusHandler implements FocusEvents
     }
 
     @Override
-    public void SetMotionEvent(MotionEvent event) {
-
+    public boolean isTouchSupported() {
+        return isTouchSupported;
     }
 
     @Override
     public void onFocusEvent(boolean event)
     {
-        this.isFocusing = false;
         if (focusEvent != null)
             focusEvent.FocusFinished(event);
     }
@@ -155,58 +128,40 @@ public class FocusHandler extends AbstractFocusHandler implements FocusEvents
     public void onFocusLock(boolean locked) {
 
     }
-    @Override
-    public void StartFocus()
-    {
-        if (focusEvent != null)
-        {
-            focusEvent.FocusStarted(0, 0);
-        }
-        ((CameraHolder) cameraUiWrapper.getCameraHolder()).StartFocus(this);
-    }
 
     @Override
     public void StartTouchToFocus(int x_input, int y_input,int width, int height)
     {
-        if (cameraUiWrapper == null|| cameraUiWrapper.getParameterHandler() == null || cameraUiWrapper.getParameterHandler().FocusMode == null)
+        super.StartTouchToFocus(x_input,y_input,width,height);
+        if (focusEvent != null)
+            focusEvent.FocusStarted(x_input,y_input);
+
+    }
+
+    @Override
+    protected void startTouchFocus(FocusCoordinates obj) {
+        if (cameraUiWrapper == null|| cameraUiWrapper.getParameterHandler() == null || cameraUiWrapper.getParameterHandler().get(SettingKeys.FocusMode) == null)
             return;
 
-        Log.d(TAG, "start Touch X:Y " + x_input +":" + y_input);
-        String focusmode = cameraUiWrapper.getParameterHandler().FocusMode.GetStringValue();
+        Log.d(TAG, "start Touch X:Y " + obj.x +":" + obj.y);
+        String focusmode = cameraUiWrapper.getParameterHandler().get(SettingKeys.FocusMode).GetStringValue();
         if (focusmode.equals("auto") || focusmode.equals("macro"))
         {
-            Rect targetFocusRect = getFocusRect(x_input,y_input, width, height);
+            Rect targetFocusRect = getFocusRect(obj.x,obj.y, obj.width, obj.height);
 
             if (targetFocusRect.left >= -1000
                     && targetFocusRect.top >= -1000
                     && targetFocusRect.bottom <= 1000
                     && targetFocusRect.right <= 1000)
             {
-
-                /*if (this.isFocusing)
-                {
-                    this.cameraUiWrapper.getCameraHolder().CancelFocus();
-                    Log.d(this.TAG, "Canceld Focus");
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException ex) {
-                        Log.WriteEx(ex);
-                    }
-                }*/
-
                 logFocusRect(targetFocusRect);
                 //tempDIS
                 cameraUiWrapper.getParameterHandler().SetFocusAREA(targetFocusRect);
 
                 if (cameraUiWrapper.getCameraHolder() != null)
                     ((CameraHolder) cameraUiWrapper.getCameraHolder()).StartFocus(this);
-                this.isFocusing = true;
-
-                if (focusEvent != null)
-                    focusEvent.FocusStarted(x_input,y_input);
             }
         }
-
     }
 
     @Override
@@ -259,4 +214,6 @@ public class FocusHandler extends AbstractFocusHandler implements FocusEvents
         }
         return targetFocusRect;
     }
+
+
 }

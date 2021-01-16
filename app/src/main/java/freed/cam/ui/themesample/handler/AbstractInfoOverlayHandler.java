@@ -36,41 +36,42 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.basecamera.modules.ModuleChangedEvent;
-import freed.utils.AppSettingsManager;
+import freed.cam.apis.basecamera.parameters.ParameterInterface;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
  * Created by troop on 14.06.2015.
  */
-public abstract class AbstractInfoOverlayHandler implements ModuleChangedEvent
+public abstract class AbstractInfoOverlayHandler
 {
     private final Handler handler;
-    protected CameraWrapperInterface cameraUiWrapper;
-    boolean started;
+    private CameraWrapperInterface cameraUiWrapper;
+    private boolean started;
+    private boolean isStopped;
     private final Context context;
 
-    protected String batteryLevel;
+    String batteryLevel;
     private final BatteryBroadCastListner batteryBroadCastListner;
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-    protected String timeString;
+    String timeString;
 
     //this holds the format for video or picture
-    protected String format;
+    private String format;
     //this holds the size for video/picture
-    protected String size;
+    String size;
 
-    protected String storageSpace;
-    protected AppSettingsManager appSettingsManager;
+    String storageSpace;
     private DecimalFormat decimalFormat;
 
     private final String[] units = { "B", "KB", "MB", "GB", "TB" };
 
-    public AbstractInfoOverlayHandler(Context context, AppSettingsManager appSettingsManager)
+    AbstractInfoOverlayHandler(Context context)
     {
         this.context = context;
-        this.appSettingsManager =appSettingsManager;
         handler = new Handler();
         batteryBroadCastListner = new BatteryBroadCastListner();
         decimalFormat = new DecimalFormat("#,##0.#");
@@ -79,12 +80,7 @@ public abstract class AbstractInfoOverlayHandler implements ModuleChangedEvent
     public void setCameraUIWrapper(CameraWrapperInterface cameraUIWrapper)
     {
         cameraUiWrapper = cameraUIWrapper;
-        if (cameraUIWrapper != null && cameraUIWrapper.getModuleHandler() != null)
-            cameraUIWrapper.getModuleHandler().addListner(this);
-    }
 
-    @Override
-    public void onModuleChanged(String module) {
     }
 
     private void startLooperThread()
@@ -121,13 +117,19 @@ public abstract class AbstractInfoOverlayHandler implements ModuleChangedEvent
         }
     }
 
-    Runnable runner = new Runnable() {
+    private Runnable runner = new Runnable() {
         @Override
         public void run()
         {
             timeString = dateFormat.format(new Date());
             if (cameraUiWrapper != null){
-                getFormat();
+                try {
+                    getFormat();
+                }
+                catch (NullPointerException ex)
+                {
+                    //Log.WriteEx(ex);
+                }
                 getStorageSpace();
             }
             else
@@ -142,40 +144,43 @@ public abstract class AbstractInfoOverlayHandler implements ModuleChangedEvent
 
 
 
-    protected void UpdateViews()
+    void UpdateViews()
     {
 
     }
 
     private void getFormat()
     {
-        if (cameraUiWrapper.getModuleHandler().getCurrentModuleName().equals(cameraUiWrapper.getResString(R.string.module_video)))
+        if (cameraUiWrapper.getModuleHandler().getCurrentModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_video)))
         {
-            if (cameraUiWrapper.getParameterHandler().VideoProfiles != null)
-                size = cameraUiWrapper.getParameterHandler().VideoProfiles.GetStringValue();
+            ParameterInterface videoprofile = cameraUiWrapper.getParameterHandler().get(SettingKeys.VideoProfiles);
+            if (videoprofile != null)
+                size = videoprofile.GetStringValue();
             else
                 size = "";
         }
         else
         {
-            if (cameraUiWrapper.getParameterHandler().PictureFormat != null)
-                format = cameraUiWrapper.getParameterHandler().PictureFormat.GetStringValue();
+            ParameterInterface pictureFormat = cameraUiWrapper.getParameterHandler().get(SettingKeys.PictureFormat);
+            if (pictureFormat != null)
+                format = pictureFormat.GetStringValue();
             else
                 format = "";
 
-            if (cameraUiWrapper.getParameterHandler().PictureSize != null)
-                size = cameraUiWrapper.getParameterHandler().PictureSize.GetStringValue();
+            ParameterInterface pictureSize = cameraUiWrapper.getParameterHandler().get(SettingKeys.PictureSize);
+            if (pictureSize != null)
+                size = pictureSize.GetStringValue();
             else
                 size = "";
         }
     }
 
-    public void getStorageSpace()
+    private void getStorageSpace()
     {
         try
         {
             //defcomg was here 24/01/2015
-            if(!cameraUiWrapper.getModuleHandler().getCurrentModuleName().equals(cameraUiWrapper.getResString(R.string.module_video)))
+            if(!cameraUiWrapper.getModuleHandler().getCurrentModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_video)))
                 storageSpace = Avail4PIC();
             else
                 storageSpace = readableFileSize(SDspace());
@@ -189,8 +194,21 @@ public abstract class AbstractInfoOverlayHandler implements ModuleChangedEvent
     }
 
     private String readableFileSize(long size) {
-        if(size <= 0) return "0";
+        if( size < 524288000 ){ //at least leave 500MB so that OS can work properly.
+            //set not enough storage recording state
+            cameraUiWrapper.getModuleHandler().SetIsLowStorage(true);
+            if( !isStopped ) {
+                //low storage reached; automatically stop the video.
+                cameraUiWrapper.getModuleHandler().startWork();
+                isStopped = true;
+            }
+        }
+        else{
+            isStopped = false;
+            cameraUiWrapper.getModuleHandler().SetIsLowStorage(false);
+        }
 
+        if(size <= 0) return "0";
         int digitGroups = (int) (Math.log10(size)/Math.log10(1024));
         return decimalFormat.format(size/Math.pow(1024, digitGroups)) + " " + units[digitGroups];
     }
@@ -205,9 +223,9 @@ public abstract class AbstractInfoOverlayHandler implements ModuleChangedEvent
     }
     private double Calc()
     {
-        String[] res = appSettingsManager.pictureSize.get().split("x");
+        String[] res = SettingsManager.get(SettingKeys.PictureSize).get().split("x");
 
-        if(appSettingsManager.pictureFormat.get().contains(appSettingsManager.getResString(R.string.bayer_)))
+        if(SettingsManager.get(SettingKeys.PictureFormat).get().contains(FreedApplication.getStringFromRessources(R.string.bayer_)))
         {
             if (Build.MANUFACTURER.contains("HTC"))
                 return Integer.parseInt(res[0]) * 2 *Integer.parseInt(res[1]) * 16 / 8;
@@ -221,7 +239,7 @@ public abstract class AbstractInfoOverlayHandler implements ModuleChangedEvent
     private long SDspace()
     {
         long bytesAvailable = 0;
-        if (!appSettingsManager.GetWriteExternal()) {
+        if (!SettingsManager.getInstance().GetWriteExternal()) {
             bytesAvailable = Environment.getExternalStorageDirectory().getUsableSpace();
         }
         else

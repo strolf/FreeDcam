@@ -1,6 +1,5 @@
 package freed.utils;
 
-import android.os.Environment;
 import android.text.format.DateFormat;
 
 import java.io.BufferedWriter;
@@ -11,6 +10,8 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Calendar;
 
+import freed.FreedApplication;
+
 /**
  * Created by troop on 08.03.2017.
  */
@@ -18,11 +19,19 @@ import java.util.Calendar;
 public class Log
 {
     private static FileLog fileLog;
+    private static boolean isinit = false;
 
     public Log()
     {
-        if(fileLog == null)
+        if (isinit) {
+            android.util.Log.d("Log", "is already init");
+            return;
+        }
+        if(fileLog == null) {
+            android.util.Log.d("Log", "is created");
             fileLog = new FileLog();
+            isinit = true;
+        }
     }
 
     public static void destroy()
@@ -45,35 +54,35 @@ public class Log
 
     public static void v(String TAG, String msg)
     {
-        if (fileLog != null)
+        if (fileLog != null && msg != null)
             fileLog.writeString("V:" + DateFormat.format("hh.mm.ss", Calendar.getInstance().getTime())+ ":" + TAG + ":" + msg);
         android.util.Log.v(TAG,msg);
     }
 
     public static void d(String TAG, String msg)
     {
-        if (fileLog != null)
+        if (fileLog != null && msg != null)
             fileLog.writeString("D:" + DateFormat.format("hh.mm.ss", Calendar.getInstance().getTime()) + ":" + TAG + ":" + msg);
         android.util.Log.d(TAG,msg);
     }
 
     public static void i(String TAG, String msg)
     {
-        if (fileLog != null)
+        if (fileLog != null && msg != null)
             fileLog.writeString("I:" + DateFormat.format("hh.mm.ss", Calendar.getInstance().getTime())+ ":" + TAG + ":" + msg);
         android.util.Log.d(TAG,msg);
     }
 
     public static void w(String TAG, String msg)
     {
-        if (fileLog != null)
+        if (fileLog != null && msg != null)
             fileLog.writeString("W:" + DateFormat.format("hh.mm.ss", Calendar.getInstance().getTime())+ ":" + TAG + ":" + msg);
         android.util.Log.d(TAG,msg);
     }
 
     public static void e(String TAG, String msg)
     {
-        if (fileLog != null)
+        if (fileLog != null && msg != null)
             fileLog.writeString("E:" +DateFormat.format("hh.mm.ss", Calendar.getInstance().getTime())+ ":" + TAG + ":" + msg);
         android.util.Log.d(TAG,msg);
     }
@@ -97,7 +106,8 @@ public class Log
             defaultUncaughtExHandler = Thread.getDefaultUncaughtExceptionHandler();
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
             try {
-                File outfile = new File(Environment.getExternalStorageDirectory() +"/DCIM/FreeDcam/"+/*+ DateFormat.format("yyyy-mm-dd hh.mm.ss", Calendar.getInstance().getTime())*/ "log"+".txt");
+                File outfile = new File(FreedApplication.getContext().getExternalFilesDir(null)+ "/log.txt");
+                outfile.createNewFile();
                 if (!outfile.getParentFile().exists()) {
                     outfile.getParentFile().mkdirs();
                 }
@@ -107,6 +117,9 @@ public class Log
                 fileWriter = new FileWriter(outfile,true);
                 outwriter = new BufferedWriter(fileWriter);
             } catch (IOException e) {
+                e.printStackTrace();
+            }
+            catch (NullPointerException e) {
                 e.printStackTrace();
             }
         }
@@ -121,6 +134,9 @@ public class Log
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                catch (NullPointerException e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -130,6 +146,8 @@ public class Log
                 outwriter.flush();
                 fileWriter.flush();
             } catch (IOException e) {
+                e.printStackTrace();
+            } catch (NullPointerException e) {
                 e.printStackTrace();
             }
 
@@ -145,6 +163,9 @@ public class Log
                 outwriter = null;
                 fileWriter =null;
             } catch (IOException e) {
+                e.printStackTrace();
+            }
+            catch (NullPointerException e) {
                 e.printStackTrace();
             }
         }

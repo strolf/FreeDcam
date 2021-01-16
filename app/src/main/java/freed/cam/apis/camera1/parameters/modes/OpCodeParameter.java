@@ -19,6 +19,8 @@
 
 package freed.cam.apis.camera1.parameters.modes;
 
+import android.text.TextUtils;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -36,15 +38,16 @@ import java.util.List;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.utils.AppSettingsManager;
+import freed.cam.ui.themesample.handler.UserMessageHandler;
+import freed.settings.OpCodeUrl;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
-import freed.utils.StringUtils;
 
 
 /**
@@ -53,86 +56,57 @@ import freed.utils.StringUtils;
 public class OpCodeParameter extends AbstractParameter
 {
     private final String TAG = OpCodeParameter.class.getSimpleName();
-    private boolean hasOp2;
-    private boolean hasOp3;
-    private final boolean isSupported;
-    private final AppSettingsManager appSettingsManager;
-    public OpCodeParameter(AppSettingsManager appSettingsManager)
-    {
-        this.appSettingsManager = appSettingsManager;
-        File op2 = new File(StringUtils.GetFreeDcamConfigFolder+"opc2.bin");
-        if (op2.exists())
-            hasOp2 =true;
-        File op3 = new File(StringUtils.GetFreeDcamConfigFolder+"opc3.bin");
-        if (op3.exists())
-            hasOp3 =true;
-        isSupported = hasOp2 || hasOp3 || appSettingsManager.opcodeUrlList != null || appSettingsManager.opcodeUrlList[0] != null || appSettingsManager.opcodeUrlList[1] != null;
 
+    public OpCodeParameter()
+    {
+        super(SettingKeys.OPCODE);
+        if(SettingsManager.getInstance().opcodeUrlList.size() > 0)
+            setViewState(ViewState.Visible);
     }
 
     //https://github.com/troop/FreeDcam/blob/master/camera1_opcodes/HTC_OneA9/opc2.bin?raw=true
     @Override
     public void SetValue(String valueToSet, boolean setToCamera)
     {
-        boolean opcodeEnabled = true;
         if(valueToSet.equals("Download")) {
-            if (hasOp2 || hasOp3) {
-                opcodeEnabled = true;
-                fireStringValueChanged("Enabled");
-                return;
+            for (final OpCodeUrl url : SettingsManager.getInstance().opcodeUrlList)
+            {
+                if (!TextUtils.isEmpty(url.getOpcode2Url()))
+                    FreeDPool.Execute(() -> {
+                        try {
+                            httpsGet(url.getOpcode2Url(), url.getID() + "opc2.bin");
+                        } catch (IOException ex) {
+                            Log.WriteEx(ex);
+                            UserMessageHandler.sendMSG(ex.getLocalizedMessage(),true);
+                        }
+                    });
+                if (!TextUtils.isEmpty(url.getOpcode3Url()))
+                    FreeDPool.Execute(() -> {
+                        try {
+                            httpsGet(url.getOpcode3Url(), url.getID() + "opc3.bin");
+                        } catch (IOException ex) {
+                            Log.WriteEx(ex);
+                            UserMessageHandler.sendMSG(ex.getLocalizedMessage(),true);
+                        }
+                    });
             }
-            final String urlopc2 = appSettingsManager.opcodeUrlList[0];
-            final String urlopc3 = appSettingsManager.opcodeUrlList[1];
-            FreeDPool.Execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        httpsGet(urlopc2, "opc2.bin");
-                    } catch (IOException ex) {
-                        Log.WriteEx(ex);
-                    }
-                }
-            });
-            FreeDPool.Execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        httpsGet(urlopc3, "opc3.bin");
-                    } catch (IOException ex) {
-                        Log.WriteEx(ex);
-                    }
-                }
-            });
         }
-        else opcodeEnabled = !valueToSet.equals("Disabled");
     }
 
-    @Override
-    public boolean IsSupported() {
-        return isSupported;
-    }
 
     @Override
     public String GetStringValue() {
-        return (hasOp2 || hasOp3) +"";
+        return "true";
     }
 
     @Override
     public String[] getStringValues() {
         List<String> list = new ArrayList<>();
-        if (hasOp2 || hasOp3)
-        {
-            list.add("Enabled");
-            list.add("Disabled");
-        }
-        else if ((!hasOp2 && !hasOp3) && (appSettingsManager.opcodeUrlList[0] != null || appSettingsManager.opcodeUrlList[1] != null))
-            list.add("Download");
-        return list.toArray(new String[list.size()]);
-    }
 
-    @Override
-    public boolean IsVisible() {
-        return isSupported;
+        if (SettingsManager.getInstance().opcodeUrlList.size() >0)
+            list.add("Download");
+        else list.add("No OPCODE avail");
+        return list.toArray(new String[list.size()]);
     }
 
     private void httpsGet(String url, String fileending) throws IOException {
@@ -174,7 +148,7 @@ public class OpCodeParameter extends AbstractParameter
 
         // Read stream as String
         FileOutputStream responseBuf = null;
-        File file = new File(StringUtils.GetFreeDcamConfigFolder+fileending);
+        File file = new File(SettingsManager.getInstance().getAppDataFolder().getAbsolutePath()+fileending);
         try {
 
             responseBuf = new FileOutputStream(file);
@@ -207,11 +181,7 @@ public class OpCodeParameter extends AbstractParameter
     }
 
     // always verify the host - dont check for certificate
-    private static final HostnameVerifier DO_NOT_VERIFY = new HostnameVerifier() {
-        public boolean verify(String hostname, SSLSession session) {
-            return true;
-        }
-    };
+    private static final HostnameVerifier DO_NOT_VERIFY = (hostname, session) -> true;
 
     /**
      * Trust every server - dont check for any certificate

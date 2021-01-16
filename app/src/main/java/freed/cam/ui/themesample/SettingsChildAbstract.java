@@ -25,17 +25,15 @@ import android.view.LayoutInflater;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import freed.ActivityInterface;
-import freed.cam.apis.basecamera.parameters.ParameterEvents;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.ParameterInterface;
 import freed.cam.ui.themesample.cameraui.childs.UiSettingsChild;
-import freed.utils.AppSettingsManager;
 import freed.utils.Log;
 
 /**
  * Created by troop on 16.06.2016.
  */
-public abstract class SettingsChildAbstract extends LinearLayout implements SettingsChildInterface, ParameterEvents
+public abstract class SettingsChildAbstract extends LinearLayout implements SettingsChildInterface
 {
 
     public interface SettingsChildClick
@@ -49,41 +47,19 @@ public abstract class SettingsChildAbstract extends LinearLayout implements Sett
     }
 
     protected ParameterInterface parameter;
-    protected ActivityInterface fragment_activityInterface;
-    protected AppSettingsManager.SettingMode settingMode;
-    protected String key_appsettings;
     protected TextView valueText;
 
     protected SettingsChildClick onItemClick;
     protected boolean fromleft;
 
-    public SettingsChildAbstract(Context context, AppSettingsManager.SettingMode settingsMode, ParameterInterface parameter)
+    public SettingsChildAbstract(Context context, ParameterInterface parameter)
     {
         super(context);
-        this.settingMode = settingsMode;
         this.parameter = parameter;
-        if (parameter == null)
+        if (parameter == null || parameter.GetStringValue() == null)
             return;
         String value = parameter.GetStringValue();
-        parameter.addEventListner(this);
         parameter.fireStringValueChanged(value);
-    }
-
-
-    @Override
-    public void SetStuff(ActivityInterface fragment_activityInterface, String settingvalue)
-    {
-        this.fragment_activityInterface = fragment_activityInterface;
-        key_appsettings = settingvalue;
-    }
-
-    @Override
-    public void SetStuff(AppSettingsManager.SettingMode settingMode) {
-        this.settingMode = settingMode;
-        String value = settingMode.get();
-        if (value.equals("") || value == null)
-            value = settingMode.getValues()[0];
-        onStringValueChanged(value);
     }
 
     public SettingsChildAbstract(Context context) {
@@ -111,25 +87,17 @@ public abstract class SettingsChildAbstract extends LinearLayout implements Sett
     }
 
     public void SetParameter(ParameterInterface parameter) {
-        if (parameter == null || !parameter.IsSupported())
-        {
-            onIsSupportedChanged(false);
+        if (parameter == null) {
+            onViewStateChanged(AbstractParameter.ViewState.Hidden);
             sendLog("Paramters is null or Unsupported");
-            if (parameter != null) {
-                parameter.addEventListner(this);
-                this.parameter = parameter;
-            }
-            return;
         }
         else
         {
-
-            if (parameter != null) {
-                parameter.fireIsReadOnlyChanged(parameter.IsVisible());
-                parameter.addEventListner(this);
-                this.parameter = parameter;
-            }
+            //parameter.addEventListner(this);
+            this.parameter = parameter;
+            onViewStateChanged(parameter.getViewState());
         }
+
     }
 
     @Override
@@ -141,7 +109,7 @@ public abstract class SettingsChildAbstract extends LinearLayout implements Sett
     @Override
     public String[] GetValues()
     {
-        if (parameter != null && parameter.IsSupported())
+        if (parameter != null)
             return parameter.getStringValues();
         else return null;
     }
@@ -149,12 +117,8 @@ public abstract class SettingsChildAbstract extends LinearLayout implements Sett
     @Override
     public void SetValue(String value)
     {
-        if (parameter != null && parameter.IsSupported())
+        if (parameter != null)
         {
-            if (key_appsettings != null && !key_appsettings.equals(""))
-                fragment_activityInterface.getAppSettings().setApiString(key_appsettings, value);
-            if (settingMode != null)
-                settingMode.set(value);
             try {
                 parameter.SetValue(value, true);
             }

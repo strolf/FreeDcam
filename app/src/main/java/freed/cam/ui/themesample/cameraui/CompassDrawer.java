@@ -69,7 +69,7 @@ public class CompassDrawer extends View
      * @param context The Context the view is running in, through which it can
      *                access the current theme, resources, etc.
      * @param attrs   The attributes of the XML tag that is inflating the view.
-     * @see #View(Context, AttributeSet, int)
+     * @see (Context, AttributeSet, int)
      */
     public CompassDrawer(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -94,12 +94,10 @@ public class CompassDrawer extends View
     public void SetPosition(final float pos)
     {
         //Log.d(TAG, "SetPositon:" + pos);
-        this.post(new Runnable() {
-            @Override
-            public void run() {
-                positionRelativeToNorth = pos;
-                invalidate();
-            }
+        positionRelativeToNorth = pos;
+        this.post(() -> {
+
+            invalidate();
         });
 
     }

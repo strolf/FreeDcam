@@ -20,254 +20,145 @@
 package freed.cam.apis.basecamera;
 
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
-import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 
-import java.util.ArrayList;
-import java.util.List;
+import androidx.annotation.NonNull;
+import androidx.fragment.app.Fragment;
 
 import freed.ActivityInterface;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract;
 import freed.cam.apis.basecamera.parameters.AbstractParameterHandler;
-import freed.utils.AppSettingsManager;
-import freed.utils.RenderScriptHandler;
+import freed.renderscript.RenderScriptManager;
+import freed.renderscript.RenderScriptProcessorInterface;
+import freed.utils.Log;
 
 /**
  * Created by troop on 06.06.2015.
  * That Fragment is used as base for all camera apis added.
  */
-public abstract class CameraFragmentAbstract extends Fragment implements CameraWrapperInterface {
+public abstract class CameraFragmentAbstract<P extends AbstractParameterHandler,C extends CameraHolderAbstract> extends Fragment implements CameraInterface ,CameraWrapperInterface {
     private final String TAG = CameraFragmentAbstract.class.getSimpleName();
 
     protected View view;
-    //holds the appsettings
-    protected RenderScriptHandler renderScriptHandler;
+    protected RenderScriptManager renderScriptManager;
 
     public ModuleHandlerAbstract moduleHandler;
     /**
      * parameters for avail for the cameraHolder
      */
-    public AbstractParameterHandler parametersHandler;
+    public P parametersHandler;
     /**
      * holds the current camera
      */
-    public CameraHolderAbstract cameraHolder;
+    public C cameraHolder;
     /**
      * handels focus releated stuff for the current camera
      */
-    public AbstractFocusHandler Focus;
+    public AbstractFocusHandler focusHandler;
 
     protected boolean PreviewSurfaceRdy;
+    private ActivityInterface activityInterface;
 
     /**
-     * holds the listners that get informed when the camera state change
+     * holds handler to invoke stuff in ui or camera thread
      */
-    private final List<CameraStateEvents> cameraChangedListners;
+    protected MainToCameraHandler mainToCameraHandler;
+    protected CameraToMainHandler cameraToMainHandler;
 
-    /**
-     * holds handler to invoke stuff in ui thread
-     */
-    protected Handler uiHandler;
-    /**
-     * holds the appsettings for the current camera
-     */
-    private AppSettingsManager appSettingsManager;
-
-
-    public abstract String CameraApiName();
-
-    protected Object cameraLock;
-    protected Handler mBackgroundHandler;
-
+    public static CameraFragmentAbstract getInstance()
+    {
+        return null;
+    }
 
     public CameraFragmentAbstract()
     {
-        cameraChangedListners = new ArrayList<>();
-        uiHandler = new Handler(Looper.getMainLooper());
+
     }
 
-    public void setHandler(Handler mBackgroundHandler, Object cameraLock)
+    public void init(MainToCameraHandler mainToCameraHandler, CameraToMainHandler cameraToMainHandler, ActivityInterface activityInterface)
     {
-        this.mBackgroundHandler = mBackgroundHandler;
-        this.cameraLock = cameraLock;
+        Log.d(TAG, "init handler");
+        this.mainToCameraHandler = mainToCameraHandler;
+        this.cameraToMainHandler = cameraToMainHandler;
+        this.activityInterface = activityInterface;
+
     }
 
-    @Nullable
     @Override
-    public View onCreateView(LayoutInflater layoutInflater, @Nullable ViewGroup viewGroup, @Nullable Bundle bundle) {
-        return super.onCreateView(layoutInflater, viewGroup, bundle);
+    public View onCreateView(LayoutInflater layoutInflater, ViewGroup viewGroup, Bundle bundle) {
+        Log.d(TAG, "onCreateView");
+
+        return super.onCreateView(layoutInflater, viewGroup, null);
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(null);
     }
 
     @Override
     public void onDestroyView()
     {
-        if (moduleHandler != null) {
-            moduleHandler.CLEAR();
-            moduleHandler.CLEARWORKERLISTNER();
-        }
+        Log.d(TAG, "onDestroyView");
+
         super.onDestroyView();
 
     }
-
-
-
-    public void SetRenderScriptHandler(RenderScriptHandler renderScriptHandler)
+    
+    public void setRenderScriptManager(RenderScriptManager renderScriptManager)
     {
-        this.renderScriptHandler = renderScriptHandler;
-    }
-
-    public void SetAppSettingsManager(AppSettingsManager appSettingsManager)
-    {
-        this.appSettingsManager = appSettingsManager;
-    }
-
-    /**
-     *
-     * @return the current instance of the cameruiwrapper
-     */
-    public CameraWrapperInterface GetCameraUiWrapper()
-    {
-        return this;
-    }
-
-
-    /**
-     * adds a new listner for camera state changes
-     * @param cameraChangedListner to add
-     */
-    public void setCameraStateChangedListner(final CameraStateEvents cameraChangedListner)
-    {
-        uiHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                cameraChangedListners.add(cameraChangedListner);
-            }
-        });
+        this.renderScriptManager = renderScriptManager;
     }
 
     @Override
-    public void startCamera()
-    {
+    public void startCameraAsync() {
+        Log.d(TAG, "startCameraAsync");
+        if (mainToCameraHandler != null)
+            mainToCameraHandler.startCamera();
+        else
+            Log.d(TAG, "MainToCameraHandler is null");
     }
 
     @Override
-    public void stopCamera()
-    {
+    public void stopCameraAsync() {
+        if (mainToCameraHandler != null)
+            mainToCameraHandler.stopCamera();
+        else
+            Log.d(TAG, "MainToCameraHandler is null");
     }
 
     @Override
-    public void stopPreview()
-    {
-    }
-
-
-    @Override
-    public void startPreview()
-    {
-    }
-
-    /**
-     * Starts a new work with the current active module
-     * the module must handle the workstate on its own if it gets hit twice while work is already in progress
-     */
-    @Override
-    public void startWork()
-    {
-        moduleHandler.startWork();
-    }
-
-
-    @Override
-    public void onCameraOpen(final String message)
-    {
-        for (final CameraStateEvents cameraChangedListner : cameraChangedListners)
-            uiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraChangedListner.onCameraOpen(message);
-                }
-            });
-
-
+    public void restartCameraAsync() {
+        if (mainToCameraHandler != null)
+            mainToCameraHandler.restartCamera();
+        else
+            Log.d(TAG, "MainToCameraHandler is null");
     }
 
     @Override
-    public void onCameraError(final String error) {
-        for (final CameraStateEvents cameraChangedListner : cameraChangedListners)
-            uiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraChangedListner.onCameraError(error);
-                }
-            });
+    public void startPreviewAsync() {
+        if (mainToCameraHandler != null)
+            mainToCameraHandler.startPreview();
+        else
+            Log.d(TAG, "MainToCameraHandler is null");
     }
 
     @Override
-    public void onCameraStatusChanged(final String status)
-    {
-        for (final CameraStateEvents cameraChangedListner : cameraChangedListners)
-            uiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraChangedListner.onCameraStatusChanged(status);
-                }
-            });
-
-
+    public void stopPreviewAsync() {
+        if (mainToCameraHandler != null)
+            mainToCameraHandler.stopPreview();
+        else
+            Log.d(TAG, "MainToCameraHandler is null");
     }
 
     @Override
-    public void onCameraClose(final String message)
-    {
-        for (final CameraStateEvents cameraChangedListner : cameraChangedListners)
-            uiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraChangedListner.onCameraClose(message);
-                }
-            });
-    }
-
-    @Override
-    public void onPreviewOpen(final String message)
-    {
-        for (final CameraStateEvents cameraChangedListner : cameraChangedListners)
-            uiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraChangedListner.onPreviewOpen(message);
-                }
-            });
-    }
-
-    @Override
-    public void onPreviewClose(final String message) {
-        for (final CameraStateEvents cameraChangedListner : cameraChangedListners)
-            uiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraChangedListner.onPreviewClose(message);
-                }
-            });
-    }
-
-    @Override
-    public void onCameraOpenFinish(final String message)
-    {
-        for (final CameraStateEvents cameraChangedListner : cameraChangedListners)
-            uiHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    cameraChangedListner.onCameraOpenFinish(message);
-                }
-            });
-
+    public void restartPreviewAsync() {
+        if (mainToCameraHandler != null)
+            mainToCameraHandler.restartPreview();
+        else
+            Log.d(TAG, "MainToCameraHandler is null");
     }
 
     public abstract int getMargineLeft();
@@ -275,47 +166,39 @@ public abstract class CameraFragmentAbstract extends Fragment implements CameraW
     public abstract int getMargineTop();
     public abstract int getPreviewWidth();
     public abstract int getPreviewHeight();
-    public abstract SurfaceView getSurfaceView();
-
-
 
     @Override
-    public AppSettingsManager getAppSettingsManager() {
-        return appSettingsManager;
-    }
-
-    @Override
-    public RenderScriptHandler getRenderScriptHandler() {
-        return renderScriptHandler;
+    public RenderScriptManager getRenderScriptManager() {
+        return renderScriptManager;
     }
 
     @Override
     public ActivityInterface getActivityInterface() {
-        return (ActivityInterface)getActivity();
+        return activityInterface;
     }
 
     @Override
     public boolean isAeMeteringSupported() {
-        return Focus.isAeMeteringSupported();
+        return focusHandler.isAeMeteringSupported();
     }
 
     @Override
-    public FocuspeakProcessor getFocusPeakProcessor() {
+    public RenderScriptProcessorInterface getFocusPeakProcessor() {
         return null;
     }
 
     @Override
     public AbstractFocusHandler getFocusHandler() {
-        return Focus;
+        return focusHandler;
     }
 
     @Override
-    public CameraHolderInterface getCameraHolder() {
+    public C getCameraHolder() {
         return cameraHolder;
     }
 
     @Override
-    public AbstractParameterHandler getParameterHandler() {
+    public P getParameterHandler() {
         return parametersHandler;
     }
 
@@ -323,4 +206,5 @@ public abstract class CameraFragmentAbstract extends Fragment implements CameraW
     public ModuleHandlerAbstract getModuleHandler() {
         return moduleHandler;
     }
+
 }

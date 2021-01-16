@@ -19,96 +19,96 @@
 
 package freed.cam.ui.themesample.handler;
 
-import android.os.Handler;
+import android.content.Context;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
-import com.troop.freedcam.R.id;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 
-import freed.cam.apis.basecamera.CameraStateEvents;
-import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.EventBusLifeCycle;
+import freed.cam.events.UserMessageEvent;
 
 
 /**
  * Created by troop on 04.10.2015.
  */
-public class UserMessageHandler implements CameraStateEvents
+public class UserMessageHandler implements Runnable, EventBusLifeCycle
 {
-    private final LinearLayout messageHolder;
-    private final TextView messageTextView;
-    private final Handler handler;
 
-    public UserMessageHandler(View view)
+    private Context context;
+    private TextView messageTextView1;
+    private LinearLayout messageHolder1;
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onCameraErrorEvent(freed.cam.events.CameraStateEvents.CameraErrorEvent cameraErrorEvent)
     {
-        messageHolder = (LinearLayout)view.findViewById(id.userMessageHolder);
-        messageTextView = (TextView)view.findViewById(id.textView_usermessage);
-
-        handler = new Handler();
-
+        setUserMessage(cameraErrorEvent.msg,true);
     }
 
-    public void SetCameraUiWrapper(CameraWrapperInterface wrapper)
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onUserMessageEvent(UserMessageEvent event)
     {
-        CameraWrapperInterface cameraUiWrapper = wrapper;
-        cameraUiWrapper.setCameraStateChangedListner(this);
+        setUserMessage(event.msg,event.asToast);
     }
 
-    private void SetUserMessage(String msg)
+    public UserMessageHandler()
     {
-        handler.removeCallbacks(hideTextView);
-        messageHolder.setVisibility(View.VISIBLE);
-        messageTextView.setText(/*messageTextView.getText() + "\n" + */msg);
-        handler.postDelayed(hideTextView, 3000);
     }
 
-    private final Runnable hideTextView = new Runnable() {
-        @Override
-        public void run()
-        {
-            messageTextView.setText("");
-            messageHolder.setVisibility(View.GONE);
+    public void setContext(Context contextt)
+    {
+        this.context = contextt;
+    }
+
+    public void setMessageTextView(TextView messageTextView1, LinearLayout messageHolder1)
+    {
+        this.messageTextView1 = messageTextView1;
+        this.messageHolder1 = messageHolder1;
+    }
+
+    public static void sendMSG(String msg,boolean asToast)
+    {
+        EventBusHelper.post(new UserMessageEvent(msg,asToast));
+    }
+
+    private void setUserMessage(String msg,boolean asToast)
+    {
+        if (asToast) {
+            if (context != null)
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show();
         }
-    };
+        else {
 
-    @Override
-    public void onCameraOpen(String message) {
-
-    }
-
-    @Override
-    public void onCameraOpenFinish(String message) {
-
-    }
-
-    @Override
-    public void onCameraClose(String message) {
-
-    }
-
-    @Override
-    public void onPreviewOpen(String message) {
-
-    }
-
-    @Override
-    public void onPreviewClose(String message) {
-
-    }
-
-    @Override
-    public void onCameraError(final String error)
-    {
-        messageTextView.post(new Runnable() {
-            @Override
-            public void run() {
-                SetUserMessage(error);
+            if (messageHolder1 != null) {
+                messageHolder1.removeCallbacks(this);
+                messageHolder1.setVisibility(View.VISIBLE);
+                if (messageTextView1 != null)
+                    messageTextView1.setText(msg);
+                messageHolder1.postDelayed(this, 3000);
             }
-        });
+        }
     }
 
     @Override
-    public void onCameraStatusChanged(String status) {
+    public void run()
+    {
+        if (messageHolder1 != null && messageTextView1 !=null) {
+            messageTextView1.setText("");
+            messageHolder1.setVisibility(View.GONE);
+        }
+    }
 
+    @Override
+    public void startListning() {
+        EventBusHelper.register(this);
+    }
+
+    @Override
+    public void stopListning() {
+        EventBusHelper.unregister(this);
     }
 }

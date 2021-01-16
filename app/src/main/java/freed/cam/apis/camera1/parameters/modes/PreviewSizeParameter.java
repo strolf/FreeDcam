@@ -23,7 +23,8 @@ import android.hardware.Camera.Parameters;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -33,7 +34,7 @@ public class PreviewSizeParameter extends BaseModeParameter
 {
     final String TAG = PreviewSizeParameter.class.getSimpleName();
 
-    public PreviewSizeParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper, AppSettingsManager.SettingMode settingMode) {
+    public PreviewSizeParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper, SettingKeys.Key settingMode) {
         super(parameters, cameraUiWrapper, settingMode);
     }
 
@@ -42,22 +43,23 @@ public class PreviewSizeParameter extends BaseModeParameter
     {
         super.SetValue(valueToSet,setToCam);
         if (setToCam) {
-            cameraUiWrapper.stopPreview();
+            cameraUiWrapper.stopPreviewAsync();
         }
         parameters.set(key_value, valueToSet);
 
 
         Log.d(TAG, "setValue PreviewSizeParameters");
-        ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
 
-        onStringValueChanged(valueToSet);
+
+
         if (setToCam) {
-            cameraUiWrapper.startPreview();
+            ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
+            cameraUiWrapper.startPreviewAsync();
         }
     }
 
     @Override
     public String[] getStringValues() {
-        return cameraUiWrapper.getAppSettingsManager().previewSize.getValues();
+        return SettingsManager.get(SettingKeys.PreviewSize).getValues();
     }
 }

@@ -26,7 +26,10 @@ import android.view.View;
 import com.troop.freedcam.R;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.ui.themesample.SettingsChildAbstract.SettingsChildClick;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 09.09.2015.
@@ -48,10 +51,9 @@ public class UiSettingsFocusPeak extends UiSettingsChild implements SettingsChil
 
     public void SetCameraUiWrapper(CameraWrapperInterface cameraUiWrapper)
     {
-
-        cameraUiWrapper.getModuleHandler().addListner(this);
-
         onModuleChanged(cameraUiWrapper.getModuleHandler().getCurrentModuleName());
+        if (SettingsManager.getGlobal(SettingKeys.EnableRenderScript).get())
+            onViewStateChanged(AbstractParameter.ViewState.Visible);
 
     }
 
@@ -68,14 +70,15 @@ public class UiSettingsFocusPeak extends UiSettingsChild implements SettingsChil
 
     }
 
+
     @Override
     public void onModuleChanged(String module)
     {
-        if ((module.equals(getResources().getString(R.string.module_picture))
+        if (/*(module.equals(getResources().getString(R.string.module_picture))
                 || module.equals(getResources().getString(R.string.module_hdr))
                 || module.equals(getResources().getString(R.string.module_interval))
         || module.equals(getResources().getString(R.string.module_afbracket)))
-                && parameter != null && parameter.IsSupported())
+                &&*/ parameter != null && parameter.getViewState() == AbstractParameter.ViewState.Visible)
             setVisibility(View.VISIBLE);
         else
             setVisibility(View.GONE);

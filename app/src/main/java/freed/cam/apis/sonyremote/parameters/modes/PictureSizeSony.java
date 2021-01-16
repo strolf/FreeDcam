@@ -25,7 +25,9 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 
+import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.sonyremote.sonystuff.SimpleRemoteApi;
+import freed.settings.SettingKeys;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
 
@@ -35,9 +37,9 @@ import freed.utils.Log;
 public class PictureSizeSony extends BaseModeParameterSony
 {
     final String TAG = PictureSizeSony.class.getSimpleName();
-    public PictureSizeSony(SimpleRemoteApi api)
+    public PictureSizeSony(SimpleRemoteApi api, CameraWrapperInterface wrapperInterface)
     {
-        super("getStillSize", "setStillSize", "getAvailableStillSize", api);
+        super("getStillSize", "setStillSize", "getAvailableStillSize", api,wrapperInterface, SettingKeys.PictureSize);
     }
 
     @Override
@@ -46,18 +48,14 @@ public class PictureSizeSony extends BaseModeParameterSony
         jsonObject =null;
         if (stringvalues == null || stringvalues.length == 0) {
             stringvalues = new String[0];
-            FreeDPool.Execute(new Runnable() {
-                @Override
-                public void run()
-                {
-                    synchronized (stringvalues){
-                        try {
-                            jsonObject = mRemoteApi.getParameterFromCamera(VALUES_TO_GET);
-                            stringvalues = processValuesToReturn();
-                            fireStringValuesChanged(stringvalues);
-                        } catch (IOException ex) {
-                            Log.WriteEx(ex);
-                        }
+            FreeDPool.Execute(() -> {
+                synchronized (stringvalues){
+                    try {
+                        jsonObject = mRemoteApi.getParameterFromCamera(VALUES_TO_GET);
+                        stringvalues = processValuesToReturn();
+                        fireStringValuesChanged(stringvalues);
+                    } catch (IOException ex) {
+                        Log.WriteEx(ex);
                     }
                 }
             });

@@ -23,6 +23,8 @@ import android.hardware.Camera.Parameters;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -32,29 +34,31 @@ public class PictureSizeParameter extends BaseModeParameter
 {
     final String TAG = PictureSizeParameter.class.getSimpleName();
     public PictureSizeParameter(Parameters  parameters, CameraWrapperInterface parameterChanged) {
-        super(parameters, parameterChanged);
+        super(parameters, parameterChanged, SettingKeys.PictureSize);
         this.cameraUiWrapper = parameterChanged;
-        isSupported = true;
+        setViewState(ViewState.Visible);
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCam)
     {
         parameters.set("picture-size" , valueToSet);
+        SettingsManager.get(SettingKeys.PictureSize).set(valueToSet);
         currentString = valueToSet;
         Log.d(TAG, "SetValue : picture-size");
-        ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
+        if (setToCam)
+            ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
         fireStringValueChanged(valueToSet);
 
     }
 
     @Override
     public String GetStringValue() {
-        return cameraUiWrapper.getAppSettingsManager().pictureSize.get();
+        return SettingsManager.get(SettingKeys.PictureSize).get();
     }
 
     @Override
     public String[] getStringValues() {
-        return cameraUiWrapper.getAppSettingsManager().pictureSize.getValues();
+        return SettingsManager.get(SettingKeys.PictureSize).getValues();
     }
 }

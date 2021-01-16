@@ -22,9 +22,9 @@ package freed.cam.ui.themesample.settings.childs;
 import android.content.Context;
 import android.util.AttributeSet;
 
-import freed.ActivityInterface;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by GeorgeKiarie on 10/4/2015.
@@ -42,13 +42,6 @@ public class SettingsChildMenuTimer extends SettingsChildMenu
 
     public void SetCameraUIWrapper(CameraWrapperInterface cameraUiWrapper)
     {
-        CameraWrapperInterface cameraUiWrapper1 = cameraUiWrapper;
-    }
-
-    @Override
-    public void SetStuff(ActivityInterface fragment_activityInterface, String settingvalue) {
-        super.SetStuff(fragment_activityInterface, settingvalue);
-        //onParameterValueChanged(appSettingsManager.getApiString(AppSettingsManager.SETTING_TIMER));
     }
 
     @Override
@@ -60,7 +53,7 @@ public class SettingsChildMenuTimer extends SettingsChildMenu
     @Override
     public void SetValue(String value)
     {
-        fragment_activityInterface.getAppSettings().setApiString(AppSettingsManager.SETTING_TIMER, value);
+        SettingsManager.get(SettingKeys.selfTimer).set(value);
         onStringValueChanged(value);
     }
 }

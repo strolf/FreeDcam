@@ -25,6 +25,8 @@ import java.lang.reflect.Method;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.CameraHolder;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.cam.events.CameraStateEvents;
+import freed.settings.Frameworks;
 import freed.utils.Log;
 
 /**
@@ -40,15 +42,16 @@ public class CameraHolderMTK extends CameraHolder
     @Override
     public boolean OpenCamera(int camera)
     {
+        boolean isRdy;
         try {
             Log.d(CameraHolderLG.class.getSimpleName(), "open MTK camera");
             setMtkAppMode();
             isRdy = super.OpenCamera(camera);
-            cameraUiWrapper.onCameraOpen("");
+            CameraStateEvents.fireCameraOpenEvent();
         }
         catch (RuntimeException ex)
         {
-            cameraUiWrapper.onCameraError("Fail to connect to camera service");
+            CameraStateEvents.fireCameraErrorEvent("Fail to connect to camera service");
             isRdy = false;
         }
         return isRdy;
@@ -77,13 +80,13 @@ public class CameraHolderMTK extends CameraHolder
                 throw new  NoSuchMethodException();
             app.invoke(null, "client.appmode", "MtkEng");
         } catch (ClassNotFoundException e) {
-            Log.e(TAG,e.getMessage());
+            Log.WriteEx(e);
         } catch (InvocationTargetException e) {
-            Log.e(TAG,e.getMessage());
+            Log.WriteEx(e);
         } catch (NoSuchMethodException e) {
-            Log.e(TAG,e.getMessage());
+            Log.WriteEx(e);
         } catch (IllegalAccessException e) {
-            Log.e(TAG,e.getMessage());
+            Log.WriteEx(e);
         }
     }
 }

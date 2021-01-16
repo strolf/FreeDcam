@@ -24,9 +24,10 @@ import android.hardware.Camera.Parameters;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.modules.ModuleChangedEvent;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.cam.apis.basecamera.parameters.ParameterEvents;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
+import freed.settings.mode.SettingMode;
 import freed.utils.Log;
 
 /**
@@ -36,7 +37,7 @@ import freed.utils.Log;
  * if one of the key is empty the parameters is set as unsupported
  * when extending that class make sure you set isSupported and isVisible
  */
-public class BaseModeParameter extends AbstractParameter implements ModuleChangedEvent, ParameterEvents
+public class BaseModeParameter extends AbstractParameter implements ModuleChangedEvent
 {
     /*
     The Key to set/get a value from the parameters
@@ -47,61 +48,49 @@ public class BaseModeParameter extends AbstractParameter implements ModuleChange
     private final String TAG = BaseModeParameter.class.getSimpleName();
 
 
-    public BaseModeParameter(Parameters  parameters, CameraWrapperInterface cameraUiWrapper)
-    {
-        super(cameraUiWrapper);
-        this.parameters = parameters;
-    }
 
-    public BaseModeParameter(Parameters  parameters, CameraWrapperInterface cameraUiWrapper, AppSettingsManager.SettingMode settingMode)
+    public BaseModeParameter(Parameters  parameters, CameraWrapperInterface cameraUiWrapper, SettingKeys.Key  settingMode)
     {
-        this(parameters,cameraUiWrapper);
-        this.key_value = settingMode.getKEY();
-        this.stringvalues = settingMode.getValues();
-        this.isSupported = settingMode.isSupported();
+        super(cameraUiWrapper,settingMode);
+        this.parameters = parameters;
+        if (settingMode == null ||SettingsManager.get(settingMode) == null)
+            return;
+        SettingMode mode = (SettingMode) SettingsManager.get(settingMode);
+        this.key_value = mode.getCamera1ParameterKEY();
+        this.stringvalues = mode.getValues();
+        if (mode.isSupported())
+            setViewState(ViewState.Visible);
     }
 
     @Override
-    public void SetValue(String valueToSet,  boolean setToCam)
+    public void setValue(String valueToSet,  boolean setToCam)
     {
-        super.SetValue(valueToSet,setToCam);
-        if (valueToSet == null)
+        super.setValue(valueToSet,setToCam);
+        if (valueToSet == null || parameters == null)
             return;
-        parameters.set(key_value, valueToSet);
-        Log.d(TAG, "set " + key_value + " to " + valueToSet);
-        if (setToCam) {
+        try {
+            parameters.set(key_value, valueToSet);
+            SettingMode mode = ((SettingMode)SettingsManager.get(key));
+            if (mode == null)
+                return;
+            mode.set(valueToSet);
+            Log.d(TAG, "set " + key_value + " to " + valueToSet);
+            if (setToCam) {
 
-            Log.d(TAG,"SetValue:" + key_value);
-            ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
+                Log.d(TAG,"SetValue:" + key_value);
+                ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
+            }
+            fireStringValueChanged(valueToSet);
         }
+        catch (NullPointerException ex)
+        {
+            Log.WriteEx(ex);
+        }
+
     }
 
     @Override
     public void onModuleChanged(String module) {
-
-    }
-
-    @Override
-    public void onIsSupportedChanged(boolean value) {
-    }
-
-    @Override
-    public void onIsSetSupportedChanged(boolean value) {
-
-    }
-
-    @Override
-    public void onIntValueChanged(int current) {
-
-    }
-
-    @Override
-    public void onValuesChanged(String[] values) {
-
-    }
-
-    @Override
-    public void onStringValueChanged(String value) {
 
     }
 

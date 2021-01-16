@@ -1,5 +1,7 @@
 package freed.dng;
 
+import android.text.TextUtils;
+
 import freed.cam.apis.sonyremote.sonystuff.XmlElement;
 
 /**
@@ -30,6 +32,7 @@ public class ToneMapProfile {
     in detail in Chapter 6 DNG SDK.
      */
     private float hueSatMap[];
+    private float hueSatMap2[];
 
     /*
     This tag specifies the number of input samples in each dimension of the hue/saturation/value
@@ -84,7 +87,7 @@ public class ToneMapProfile {
             split = curve.split(",");
             toneCurve = new float[split.length];
             for (int i = 0; i < split.length; i++) {
-                if (!split[i].equals("")) {
+                if (!TextUtils.isEmpty(split[i])) {
                     toneCurve[i] = Float.parseFloat(split[i]);
                     //check if its in range 0-1 if not apply that range
                     //this happens when we extract it with exiftools. it shows it as 0-255 range
@@ -100,7 +103,6 @@ public class ToneMapProfile {
             hueSatMapDims = new int[split.length];
             for (int i = 0; i < split.length; i++)
                 hueSatMapDims[i] = Integer.parseInt(split[i]);
-
         }
 
         if (!element.findChild("huesatmapdata1").isEmpty()) {
@@ -108,6 +110,13 @@ public class ToneMapProfile {
             hueSatMap = new float[split.length];
             for (int i = 0; i < split.length; i++)
                 hueSatMap[i] = Float.parseFloat(split[i]);
+        }
+
+        if (!element.findChild("huesatmapdata2").isEmpty()) {
+            split = element.findChild("huesatmapdata2").getValue().split(" ");
+            hueSatMap2 = new float[split.length];
+            for (int i = 0; i < split.length; i++)
+                hueSatMap2[i] = Float.parseFloat(split[i]);
         }
 
         if (!element.findChild("baselineexposure").isEmpty())
@@ -135,6 +144,10 @@ public class ToneMapProfile {
     {
         return hueSatMap;
     }
+    public float[] getHueSatMapData2()
+    {
+        return hueSatMap2;
+    }
     public int[] getHueSatMapDims(){
         return hueSatMapDims;
     }
@@ -151,28 +164,35 @@ public class ToneMapProfile {
 
     public String getXmlString()
     {
-        String tonecurve = new String();
+        StringBuilder tonecurve = new StringBuilder();
         for (int i=0; i < toneCurve.length; i++)
         {
-            tonecurve += toneCurve[i] + " ";
+            tonecurve.append(toneCurve[i]).append(" ");
         }
-        String huesatmap = new String();
+        StringBuilder huesatmap = new StringBuilder();
         for (int i=0; i < hueSatMap.length; i++)
         {
-            huesatmap += hueSatMap[i] + " ";
+            huesatmap.append(hueSatMap[i]).append(" ");
         }
-        String huesatmapdim = new String();
+
+        StringBuilder huesatmap2 = new StringBuilder();
+        for (int i=0; i < hueSatMap2.length; i++)
+        {
+            huesatmap2.append(hueSatMap2[i]).append(" ");
+        }
+        StringBuilder huesatmapdim = new StringBuilder();
         for (int i=0; i < hueSatMapDims.length; i++)
         {
-            huesatmapdim += hueSatMapDims[i] + " ";
+            huesatmapdim.append(hueSatMapDims[i]).append(" ");
         }
-        String t = new String();
+        String t = "";
         t += "<tonemapprofile name= " +String.valueOf("\"") +String.valueOf(name) +String.valueOf("\"")  +">" + "\r\n";
         t += "<tonecurve>" + tonecurve + "</tonecurve>" + "\r\n";
         t += "<baselineexposure>" + baselineExposure + "</baselineexposure>" + "\r\n";
         t += "<baselineexposureoffset>" + baselineExposureOffset + "</baselineexposureoffset>" + "\r\n";
         t += "<huesatmapdims>" + huesatmapdim + "</huesatmapdims>" + "\r\n";
         t += "<huesatmap>" + huesatmap + "</huesatmap>" + "\r\n";
+        t += "<huesatmap2>" + huesatmap2 + "</huesatmap2>" + "\r\n";
         t += "</tonemapprofile>"  + "\r\n";
 
 

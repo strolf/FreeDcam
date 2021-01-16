@@ -25,9 +25,14 @@ import android.os.Build.VERSION_CODES;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.cam.apis.camera2.CameraHolderApi2;
+import freed.cam.apis.camera2.Camera2Fragment;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.FocusPositionChangedEvent;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 import freed.utils.StringFloatArray;
 
@@ -42,14 +47,13 @@ public class ManualFocus extends AbstractParameter
 
     public ManualFocus(CameraWrapperInterface cameraUiWrapper)
     {
-        super(cameraUiWrapper);
-        if (cameraUiWrapper.getAppSettingsManager().manualFocus.isSupported())
-        {
-            isSupported = true;
-            focusvalues = new StringFloatArray(cameraUiWrapper.getAppSettingsManager().manualFocus.getValues());
-            currentInt = 0;
+        super(cameraUiWrapper,SettingKeys.M_Focus);
+        if (stringvalues != null && stringvalues.length > 0) {
+            focusvalues = new StringFloatArray(stringvalues);
+            setViewState(ViewState.Visible);
         }
-
+        else
+            setViewState(ViewState.Hidden);
     }
 
     @Override
@@ -65,51 +69,55 @@ public class ManualFocus extends AbstractParameter
 
 
     @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
-        currentInt = valueToSet;
+        super.setValue(valueToSet,setToCamera);
+        //set to auto
         if(valueToSet == 0)
         {
-            cameraUiWrapper.getParameterHandler().FocusMode.SetValue(cameraUiWrapper.getContext().getString(R.string.auto), true);
-            ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler.SetParameterRepeating(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
+            //apply last used focuse mode
+            cameraUiWrapper.getParameterHandler().get(SettingKeys.FocusMode).SetValue(SettingsManager.get(SettingKeys.FocusMode).get(), setToCamera);
+            ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
         }
-        else
+        else // set to manual
         {
-            if (!cameraUiWrapper.getParameterHandler().FocusMode.GetStringValue().equals(cameraUiWrapper.getContext().getString(R.string.off)))
+            //if focusmode is in any other mode, turn af off
+            if (!cameraUiWrapper.getParameterHandler().get(SettingKeys.FocusMode).GetStringValue().equals(FreedApplication.getStringFromRessources(R.string.off)))
             {
-                ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler.SetParameterRepeating(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_CANCEL);
-                cameraUiWrapper.getParameterHandler().FocusMode.SetValue(cameraUiWrapper.getContext().getString(R.string.off), true);
+                //apply turn off direct to the capturesession, else it get stored in settings.
+                cameraUiWrapper.getParameterHandler().get(SettingKeys.FocusMode).fireStringValueChanged(FreedApplication.getStringFromRessources(R.string.off));
+                ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameter(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_CANCEL);
+                ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameterRepeating(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF,setToCamera);
             }
+            if (currentInt > focusvalues.getSize())
+                currentInt = focusvalues.getSize() -1;
             float valtoset= focusvalues.getValue(currentInt);
             Log.d(TAG, "Set MF TO: " + valtoset+ " ValueTOSET: " + valueToSet);
-            ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler.SetParameterRepeating(CaptureRequest.LENS_FOCUS_DISTANCE, valtoset);
+            ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameterRepeating(CaptureRequest.LENS_FOCUS_DISTANCE, valtoset,setToCamera);
         }
-    }
-
-    @Override
-    public void SetValue(String valueToSet, boolean setToCamera) {
-
-    }
-
-
-    @Override
-    public boolean IsSupported()
-    {
-        return isSupported;
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return isSupported;
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return true;
     }
 
     @Override
     public String[] getStringValues() {
         return focusvalues.getKeys();
     }
+
+    public float getFloatValue(int index)
+    {
+        return focusvalues.getValue(index);
+    }
+
+    public String getStringValue(int index)
+    {
+        return focusvalues.getKey(index);
+    }
+
+    @Override
+    public void fireStringValueChanged(String value)
+    {
+        currentString = value;
+        EventBusHelper.post(new FocusPositionChangedEvent(key,value, String.class));
+    }
+
+
 }

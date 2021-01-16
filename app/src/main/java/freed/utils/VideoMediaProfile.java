@@ -30,6 +30,7 @@ import freed.cam.apis.sonyremote.sonystuff.XmlElement;
 public class VideoMediaProfile
 {
     private static final String TAG = VideoMediaProfile.class.getSimpleName();
+    public static long MAX_RECORDING_SIZE = 3037822976L;
     //The target audio output bit rate in bits per second
     public int audioBitRate;
     //The number of audio channels used for the audio track
@@ -55,6 +56,16 @@ public class VideoMediaProfile
 
     public boolean isAudioActive;
 
+    public long maxRecordingSize;
+
+    public int profile = -1;
+    public int level = -1;
+    public String encoderName = "Default";
+
+    public boolean videoHdr = false;
+    public int opcode = -1;
+    public int preview_opcode = -1;
+
     public enum VideoMode
     {
         Normal,
@@ -69,7 +80,8 @@ public class VideoMediaProfile
         audioChannels = ex.audioChannels;
         audioCodec = ex.audioCodec;
         audioSampleRate = ex.audioSampleRate;
-        duration = ex.duration;
+        duration = ex.duration *60 *1000; //from min to ms
+        maxRecordingSize = 0;
         fileFormat = ex.fileFormat;
         quality = ex.quality;
         videoBitRate = ex.videoBitRate;
@@ -85,7 +97,28 @@ public class VideoMediaProfile
         Log.d(TAG,"VBitrate:"+ videoBitRate +"VCodec:"+ videoCodec +"VFrameRate:"+ videoFrameRate +"VWidth:"+ videoFrameWidth +"Vheight:"+ videoFrameHeight);
     }
 
-    protected VideoMediaProfile(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8, int v9, int v10, int v11, int v12, String ProfileName, VideoMode mode, boolean isAudioActive)
+    public VideoMediaProfile(int v1,
+                             int v2,
+                             int v3,
+                             int v4,
+                             int v5,
+                             int v6,
+                             int v7,
+                             int v8,
+                             int v9,
+                             int v10,
+                             int v11,
+                             int v12,
+                             long maxRecordingSize,
+                             String ProfileName,
+                             VideoMode mode,
+                             boolean isAudioActive,
+                             int profile,
+                             int lvl,
+                             String encoderName,
+                             boolean videohdr,
+                             int opcode,
+                             int preview_opcode)
     {
         audioBitRate = v1;
         audioChannels = v2;
@@ -102,7 +135,14 @@ public class VideoMediaProfile
         this.ProfileName = ProfileName;
         Mode = mode;
         this.isAudioActive = isAudioActive;
-        Log.d(TAG, "ProfileName:"+ ProfileName+ "Duration:"+ duration +"FileFormat:"+ fileFormat +"Quality:"+ quality);
+        this.maxRecordingSize = maxRecordingSize;
+        this.profile = profile;
+        this.level =lvl;
+        this.encoderName = encoderName;
+        this.videoHdr = videohdr;
+        this.opcode = opcode;
+        this.preview_opcode = preview_opcode;
+        Log.d(TAG, "ProfileName:"+ ProfileName+ " Duration:"+ duration +" FileFormat:"+ fileFormat +" Quality:"+ quality +" RecSize:" + maxRecordingSize);
         Log.d(TAG, "ABR:"+ audioBitRate +"AChannels:"+ audioChannels +"Acodec:"+ audioCodec +"AsampleRate"+ audioSampleRate +"audio_active:" + isAudioActive);
         Log.d(TAG,"VBitrate:"+ videoBitRate +"VCodec:"+ videoCodec +"VFrameRate:"+ videoFrameRate +"VWidth:"+ videoFrameWidth +"Vheight:"+ videoFrameHeight);
     }
@@ -124,6 +164,10 @@ public class VideoMediaProfile
         ProfileName = ar[12];
         Mode = VideoMode.valueOf(ar[13]);
         isAudioActive = ar.length == 14 || Boolean.parseBoolean(ar[14]);
+        if (ar.length == 16)
+            maxRecordingSize = Long.parseLong(ar[15]);
+        else
+            maxRecordingSize = 0;
 
         Log.d(TAG, "ProfileName:" + ProfileName + "Duration:" + duration + "FileFormat:" + fileFormat + "Quality:" + quality);
         Log.d(TAG, "ABR:" + audioBitRate + "AChannels:" + audioChannels + "Acodec:" + audioCodec + "AsampleRate" + audioSampleRate + "audio_active:" + isAudioActive);
@@ -134,7 +178,7 @@ public class VideoMediaProfile
 
     public String GetString()
     {
-        String b = audioBitRate + " " +
+        return audioBitRate + " " +
                 audioChannels + " " +
                 audioCodec + " " +
                 audioSampleRate + " " +
@@ -148,8 +192,8 @@ public class VideoMediaProfile
                 videoFrameWidth + " " +
                 ProfileName + " " +
                 Mode + " " +
-                isAudioActive + " ";
-        return b;
+                isAudioActive + " " +
+                maxRecordingSize;
     }
 
     public VideoMediaProfile(XmlElement xmlElement)
@@ -157,6 +201,7 @@ public class VideoMediaProfile
         ProfileName = xmlElement.getAttribute("name", "");
         audioChannels = xmlElement.findChild("audioChannels").getIntValue(0);
         audioCodec = xmlElement.findChild("audioCodec").getIntValue(0);
+        audioBitRate = xmlElement.findChild("audioBitRate").getIntValue(0);
         audioSampleRate = xmlElement.findChild("audioSampleRate").getIntValue(0);
         duration = xmlElement.findChild("duration").getIntValue(0);
         fileFormat = xmlElement.findChild("fileFormat").getIntValue(0);
@@ -168,13 +213,21 @@ public class VideoMediaProfile
         videoFrameWidth = xmlElement.findChild("videoFrameWidth").getIntValue(0);
         isAudioActive = xmlElement.findChild("isAudioActive").getBooleanValue();
         Mode = VideoMode.valueOf(xmlElement.findChild("Mode").getValue());
+        maxRecordingSize = xmlElement.findChild("recordingsize").getLongValue();
+        profile = xmlElement.findChild("profile").getIntValue(-1);
+        level = xmlElement.findChild("level").getIntValue(-1);
+        encoderName = xmlElement.findChild("encodername").getValue();
+        videoHdr = xmlElement.findChild("videohdr").getBooleanValue();
+        opcode = xmlElement.findChild("opcode").getIntValue(-1);
+        preview_opcode = xmlElement.findChild("preview_opcode").getIntValue(-1);
     }
     public String getXmlString()
     {
-        String t = new String();
+        String t = "";
         t += "<mediaprofile name= " +String.valueOf("\"") +String.valueOf(ProfileName) +String.valueOf("\"")  +">" + "\r\n";
         t += "<audioChannels>" + audioChannels + "</audioChannels>" + "\r\n";
         t += "<audioCodec>" + audioCodec + "</audioCodec>" + "\r\n";
+        t += "<audioBitRate>" + audioBitRate + "</audioBitRate>" + "\r\n";
         t += "<audioSampleRate>" + audioSampleRate + "</audioSampleRate>" + "\r\n";
         t += "<duration>" + duration + "</duration>" + "\r\n";
         t += "<fileFormat>" + fileFormat + "</fileFormat>" + "\r\n";
@@ -186,64 +239,41 @@ public class VideoMediaProfile
         t += "<videoFrameWidth>" + videoFrameWidth + "</videoFrameWidth>" + "\r\n";
         t += "<isAudioActive>" + isAudioActive + "</isAudioActive>" + "\r\n";
         t += "<Mode>" + Mode.toString() + "</Mode>" + "\r\n";
+        t += "<recordingsize>" + maxRecordingSize + "</recordingsize>" + "\r\n";
+        t += "<profile>" + profile + "</profile>" + "\r\n";
+        t += "<level>" + level + "</level>" + "\r\n";
+        t += "<encodername>" + encoderName + "</encodername>" + "\r\n";
+        t += "<videohdr>" + videoHdr + "</videohdr>" + "\r\n";
+        t += "<opcode>" + opcode + "</opcode>" + "\r\n";
+        t += "<preview_opcode>" + preview_opcode + "</preview_opcode>" + "\r\n";
         t += "</mediaprofile>"  + "\r\n";
         return t;
     }
 
     public VideoMediaProfile clone()
     {
-        return new VideoMediaProfile(audioBitRate, audioChannels, audioCodec, audioSampleRate, duration, fileFormat, quality, videoBitRate, videoCodec, videoFrameRate, videoFrameHeight, videoFrameWidth, ProfileName, Mode, isAudioActive);
+        return new VideoMediaProfile(audioBitRate,
+                audioChannels,
+                audioCodec,
+                audioSampleRate,
+                duration,
+                fileFormat,
+                quality,
+                videoBitRate,
+                videoCodec,
+                videoFrameRate,
+                videoFrameHeight,
+                videoFrameWidth,
+                maxRecordingSize,
+                ProfileName,
+                Mode,
+                isAudioActive,
+                profile,
+                level,
+                encoderName,
+                videoHdr,
+                opcode,
+                preview_opcode);
     }
 
-
-    public static final String MEDIAPROFILESPATH = StringUtils.GetFreeDcamConfigFolder+"CustomMediaProfiles.txt";
-
-    /*public static void loadCustomProfiles(HashMap<String, VideoMediaProfile> list) throws IOException
-    {
-        File mprof = new File(MEDIAPROFILESPATH);
-        if(mprof.exists())
-        {
-            Log.d(TAG, "CustomMediaProfile exists loading....");
-            BufferedReader br = new BufferedReader(new FileReader(mprof));
-            String line;
-
-            while ((line = br.readLine()) != null)
-            {
-                if (!line.startsWith("#")) {
-                    VideoMediaProfile m = new VideoMediaProfile(line);
-                    list.put(m.ProfileName, m);
-                }
-            }
-            br.close();
-        }
-        else
-            Log.d(TAG, "No CustomMediaProfiles found");
-
-    }
-
-    public static void saveCustomProfiles(HashMap<String, VideoMediaProfile> list)
-    {
-        File mprof = new File(MEDIAPROFILESPATH);
-        try {
-            if (!mprof.getParentFile().exists())
-                mprof.getParentFile().mkdirs();
-            mprof.createNewFile();
-            Log.d(TAG,"wrote MediaProfiles to txt");
-        } catch (IOException e) {
-            Log.exception(e);
-        }
-        if(mprof.exists()) {
-            try
-            {
-                BufferedWriter br = new BufferedWriter(new FileWriter(mprof));
-                br.write("#audiobitrate audiochannels audioCodec audiosamplerate duration fileFormat quality videoBitrate videoCodec videoFrameRate videoFrameHeight videoFrameWidth ProfileName RecordMode isAudioActive \n");
-                for (VideoMediaProfile profile : list.values())
-                    br.write(profile.GetString() +"\n");
-                br.close();
-            } catch (IOException e)
-            {
-                Log.exception(e);
-            }
-        }
-    }*/
 }

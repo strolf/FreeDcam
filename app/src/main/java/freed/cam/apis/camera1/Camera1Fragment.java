@@ -19,11 +19,13 @@
 
 package freed.cam.apis.camera1;
 
+import android.graphics.ImageFormat;
+import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.view.Surface;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -31,108 +33,138 @@ import com.troop.freedcam.R;
 import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
 
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraFragmentAbstract;
-import freed.cam.apis.basecamera.FocuspeakProcessor;
 import freed.cam.apis.basecamera.Size;
 import freed.cam.apis.basecamera.modules.ModuleChangedEvent;
-import freed.cam.apis.basecamera.parameters.ParameterEvents;
 import freed.cam.apis.camera1.cameraholder.CameraHolderLG;
 import freed.cam.apis.camera1.cameraholder.CameraHolderLegacy;
 import freed.cam.apis.camera1.cameraholder.CameraHolderMTK;
 import freed.cam.apis.camera1.cameraholder.CameraHolderMotoX;
+import freed.cam.apis.camera1.cameraholder.CameraHolderSony;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
-import freed.cam.apis.camera1.renderscript.FocusPeakProcessorAp1;
-import freed.utils.AppSettingsManager;
+import freed.cam.events.CameraStateEvents;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.EventBusLifeCycle;
+import freed.cam.events.ModuleHasChangedEvent;
+import freed.cam.events.ValueChangedEvent;
+import freed.renderscript.RenderScriptManager;
+import freed.renderscript.RenderScriptProcessor;
+import freed.renderscript.RenderScriptProcessorInterface;
+import freed.settings.Frameworks;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
+import freed.viewer.screenslide.views.MyHistogram;
+import freed.views.AutoFitTextureView;
 
 /**
  * Created by troop on 06.06.2015.
  */
-public class Camera1Fragment extends CameraFragmentAbstract implements ModuleChangedEvent, SurfaceHolder.Callback
+public class Camera1Fragment extends CameraFragmentAbstract<ParametersHandler, CameraHolder> implements ModuleChangedEvent, TextureView.SurfaceTextureListener, EventBusLifeCycle
 {
-    protected ExtendedSurfaceView extendedSurfaceView;
-    protected TextureViewRatio preview;
-    private final String TAG = Camera1Fragment.class.getSimpleName();
-    public FocusPeakProcessorAp1 focusPeakProcessorAp1;
-    boolean cameraRdy;
 
-    @Override
-    public String CameraApiName() {
-        return AppSettingsManager.API_1;
+    @Subscribe
+    public void onModuleHasChangedEvent(ModuleHasChangedEvent event)
+    {
+        onModuleChanged(event.NewModuleName);
     }
 
+    @Subscribe
+    public void onPictureSizeChanged(ValueChangedEvent<String> valueChangedEvent)
+    {
+        if (valueChangedEvent.key == SettingKeys.PictureSize)
+        {
+            mainToCameraHandler.removeCallbacks(createPreviewRunner);
+            mainToCameraHandler.post(createPreviewRunner);
+        }
+    }
+
+    //this gets called when the cameraholder has open the camera
+    @Subscribe
+    public void onCameraOpen(CameraStateEvents.CameraOpenEvent openEvent)
+    {
+        mainToCameraHandler.initCamera();
+    }
+
+    @Subscribe
+    public void onCameraClose(CameraStateEvents.CameraCloseEvent cameraCloseEvent)
+    {
+        if (focusHandler != null)
+            ((FocusHandler) focusHandler).stopListning();
+        if (parametersHandler != null)
+            parametersHandler.unregisterListners();
+        if(focusPeakProcessorAp1 != null)
+            focusPeakProcessorAp1.kill();
+    }
+
+    @Subscribe
+    public void onPreviewOpen(CameraStateEvents.PreviewOpenEvent previewOpenEvent) {
+
+        parametersHandler.setManualSettingsToParameters();
+    }
+
+    @Subscribe
+    public void onPreviewClose(CameraStateEvents.PreviewCloseEvent previewCloseEvent) {
+        cameraHolder.resetPreviewCallback();
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onCameraChangedAspectRatio(CameraStateEvents.CameraChangedAspectRatioEvent event)
+    {
+        Size size = event.size;
+        if (textureView != null)
+            textureView.setAspectRatio(size.width, size.height);
+        if (focusPeakProcessorAp1 != null)
+            focusPeakProcessorAp1.SetAspectRatio(size.width, size.height);
+    }
+
+    private final String TAG = Camera1Fragment.class.getSimpleName();
+    public RenderScriptProcessor focusPeakProcessorAp1;
+    private boolean cameraIsOpen = false;
+    AutoFitTextureView textureView;
+    MyHistogram histogram;
+
+    public static Camera1Fragment getInstance()
+    {
+        Camera1Fragment fragment = new Camera1Fragment();
+        return fragment;
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
     {
         super.onCreateView(inflater,container,savedInstanceState);
-        return inflater.inflate(layout.cameraholder1, container, false);
+        return inflater.inflate(layout.camerafragment, container, false);
     }
+
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState)
     {
-        extendedSurfaceView = (ExtendedSurfaceView) view.findViewById(id.exSurface);
-        preview = (TextureViewRatio) view.findViewById(id.textureView_preview);
-
-        mBackgroundHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (cameraLock)
-                {
-                    parametersHandler = new ParametersHandler(Camera1Fragment.this);
-                    moduleHandler = new ModuleHandler(Camera1Fragment.this);
-                    moduleHandler.addListner(Camera1Fragment.this);
-
-                    Focus = new FocusHandler(Camera1Fragment.this);
-
-                    Log.d(TAG,"FrameWork:" + getAppSettingsManager().getFrameWork() + " openlegacy:" + getAppSettingsManager().opencamera1Legacy.getBoolean());
-
-                    if (getAppSettingsManager().getFrameWork() == AppSettingsManager.FRAMEWORK_LG) {
-                        cameraHolder = new CameraHolderLG(Camera1Fragment.this, CameraHolder.Frameworks.LG);
-                        Log.d(TAG, "create LG camera");
-                    }
-                    else if (getAppSettingsManager().getFrameWork() == AppSettingsManager.FRAMEWORK_MOTO_EXT) {
-                        cameraHolder = new CameraHolderMotoX(Camera1Fragment.this, CameraHolder.Frameworks.MotoX);
-                        Log.d(TAG, "create MotoExt camera");
-                    }
-                    else if (getAppSettingsManager().getFrameWork() == AppSettingsManager.FRAMEWORK_MTK) {
-                        cameraHolder = new CameraHolderMTK(Camera1Fragment.this, CameraHolder.Frameworks.MTK);
-                        Log.d(TAG, "create Mtk camera");
-                    }
-                    else if (getAppSettingsManager().opencamera1Legacy.getBoolean()) {
-                        cameraHolder = new CameraHolderLegacy(Camera1Fragment.this, CameraHolder.Frameworks.Normal);
-                        Log.d(TAG, "create Legacy camera");
-                    }
-                    else {
-                        cameraHolder = new CameraHolder(Camera1Fragment.this, CameraHolder.Frameworks.Normal);
-                        Log.d(TAG, "create Normal camera");
-                    }
-
-                    Log.d(TAG, "initModules");
-                    moduleHandler.initModules();
-
-                    Log.d(TAG, "Check Focuspeak");
-                    if (Build.VERSION.SDK_INT >= 18) {
-
-                        focusPeakProcessorAp1 = new FocusPeakProcessorAp1(preview,Camera1Fragment.this, getContext(), renderScriptHandler);
-                        setCameraStateChangedListner(focusPeakProcessorAp1);
-                    }
-                    else
-                        preview.setVisibility(View.GONE);
-                    Log.d(TAG, "Ctor done");
-                }
-            }
-        });
-
-
-        extendedSurfaceView.getHolder().addCallback(this);
-
+        textureView = view.findViewById(id.autofitview);
+        histogram = view.findViewById(id.hisotview);
+        if (mainToCameraHandler != null)
+            mainToCameraHandler.createCamera();
+        Log.d(TAG, "Ctor done");
+        textureView.setSurfaceTextureListener(this);
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        startListning();
+        if (PreviewSurfaceRdy && !cameraIsOpen)
+            startCameraAsync();
+    }
 
     @Override
     public void onPause() {
@@ -141,228 +173,109 @@ public class Camera1Fragment extends CameraFragmentAbstract implements ModuleCha
         if(moduleHandler != null
                 && moduleHandler.getCurrentModule() != null
                 && moduleHandler.getCurrentModule().ModuleName() != null
-                && moduleHandler.getCurrentModule().ModuleName().equals(getResString(R.string.module_video))
+                && moduleHandler.getCurrentModule().ModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_video))
                 && moduleHandler.getCurrentModule().IsWorking())
             moduleHandler.getCurrentModule().DoWork();
+        stopCameraAsync();
+        stopListning();
     }
 
-    @Override
-    public void startCamera() {
-        if (mBackgroundHandler == null)
-            return;
-        mBackgroundHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (cameraLock)
-                {
-                    cameraHolder.OpenCamera(getAppSettingsManager().GetCurrentCamera());
-                    Log.d(TAG, "opencamera");
-                }
+    private Runnable createPreviewRunner =new Runnable()
+    {
+        @Override
+        public void run() {
+            Log.d(TAG, "createPreviewRunner.run()");
+            if (textureView == null || !PreviewSurfaceRdy) {
+                Log.d(TAG, "FAILED TO GET SURFACE FROM TEXTUREVIEW ################");
+                return;
             }
-        });
-    }
-
-    @Override
-    public void stopCamera() {
-        if (mBackgroundHandler == null)
-            return;
-        mBackgroundHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (cameraLock)
-                {
-                    Log.d(TAG, "Stop Camera");
-                    if (focusPeakProcessorAp1 != null)
-                        focusPeakProcessorAp1.kill();
-                    cameraHolder.CloseCamera();
-                }
-            }
-        });
-
-    }
-
-    @Override
-    public void restartCamera() {
-        if (mBackgroundHandler == null)
-            return;
-        mBackgroundHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (cameraLock)
-                {
-                    Log.d(TAG, "Stop Camera");
-                    if (focusPeakProcessorAp1 != null)
-                        focusPeakProcessorAp1.kill();
-                    cameraHolder.CloseCamera();
-                    cameraHolder.OpenCamera(getAppSettingsManager().GetCurrentCamera());
-                    Log.d(TAG, "opencamera");
-                }
-            }
-        });
-
-    }
-
-    @Override
-    public void startPreview() {
-        cameraHolder.StartPreview();
-    }
-
-    @Override
-    public void stopPreview() {
-        Log.d(TAG, "Stop Preview");
-        cameraHolder.StopPreview();
-    }
-
-    @Override
-    public void surfaceCreated(SurfaceHolder holder)
-    {
-        Log.d(TAG, "surface created");
-        PreviewSurfaceRdy = true;
-        startCamera();
-    }
-
-    @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-
-    }
-
-    @Override
-    public void surfaceDestroyed(SurfaceHolder holder)
-    {
-        PreviewSurfaceRdy =false;
-    }
-
-
-    //this gets called when the cameraholder has open the camera
-    @Override
-    public void onCameraOpen(String message)
-    {
-        cameraRdy = true;
-        super.onCameraOpen(message);
-        ((ParametersHandler) parametersHandler).LoadParametersFromCamera();
-        parametersHandler.PictureSize.addEventListner(onPreviewSizeShouldChange);
-        cameraHolder.SetSurface(extendedSurfaceView.getHolder());
-        cameraHolder.StartPreview();
-        this.onCameraOpenFinish("");
-    }
-
-    @Override
-    public void onCameraClose(String message)
-    {
-        cameraRdy = false;
-        super.onCameraClose(message);
-    }
-
-    @Override
-    public void onPreviewOpen(String message) {
-        super.onPreviewOpen(message);
-
-    }
-
-    @Override
-    public void onPreviewClose(String message) {
-        super.onPreviewClose(message);
-        cameraHolder.ResetPreviewCallback();
-    }
-
-
-    ParameterEvents onPreviewSizeShouldChange = new ParameterEvents() {
-
-        @Override
-        public void onIsSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIsSetSupportedChanged(boolean value) {
-
-        }
-
-        @Override
-        public void onIntValueChanged(int current) {
-
-        }
-
-        @Override
-        public void onValuesChanged(String[] values) {
-
-        }
-
-        @Override
-        public void onStringValueChanged(String value) {
-            if(moduleHandler.getCurrentModuleName().equals(getResString(R.string.module_picture))
-                    || moduleHandler.getCurrentModuleName().equals(getResString(R.string.module_hdr))
-                    || moduleHandler.getCurrentModuleName().equals(getResString(R.string.module_interval)))
+            if(moduleHandler.getCurrentModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_picture))
+                    || moduleHandler.getCurrentModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_hdr))
+                    || moduleHandler.getCurrentModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_interval)))
             {
-                Size sizefromCam = new Size(parametersHandler.PictureSize.GetStringValue());
+                Size sizefromCam = new Size(parametersHandler.get(SettingKeys.PictureSize).GetStringValue());
                 List<Size> sizes = new ArrayList<>();
-                String[] stringsSizes = parametersHandler.PreviewSize.getStringValues();
+                String[] stringsSizes = parametersHandler.get(SettingKeys.PreviewSize).getStringValues();
                 final Size size;
                 for (String s : stringsSizes) {
                     sizes.add(new Size(s));
                 }
-                if(value.equals(getResString(R.string.on_))) {
-                    size = getOptimalPreviewSize(sizes, sizefromCam.width, sizefromCam.height, true);
-                }
-                else {
-                    size = getOptimalPreviewSize(sizes, sizefromCam.width, sizefromCam.height, false);
-                }
-                Log.d(TAG, "set size to " + size.width + "x" + size.height);
+                size = getOptimalPreviewSize(sizes, sizefromCam.width, sizefromCam.height, true);
 
-                parametersHandler.PreviewSize.SetValue(size.width + "x" + size.height, true);
-                uiHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (extendedSurfaceView != null)
-                            extendedSurfaceView.setAspectRatio(size.width, size.height);
-                        if (focusPeakProcessorAp1 != null)
-                            focusPeakProcessorAp1.SetAspectRatio(size.width,size.height);
+                Log.d(TAG, "set size to " + size.width + "x" + size.height);
+                if (focusPeakProcessorAp1 != null && SettingsManager.getGlobal(SettingKeys.EnableRenderScript).get()) {
+                    if(size == null || textureView.getSurfaceTexture() == null ||
+                            (size.height == focusPeakProcessorAp1.getHeight() && size.width == focusPeakProcessorAp1.getWidth()))
+                        return;
+                    cameraHolder.StopPreview();
+                    focusPeakProcessorAp1.kill();
+                    cameraHolder.setSurface((Surface) null);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
+                        textureView.getSurfaceTexture().setDefaultBufferSize(size.width, size.height);
                     }
-                });
+
+                    parametersHandler.get(SettingKeys.PreviewSize).SetValue(size.width + "x" + size.height, true);
+                    Surface surface = new Surface(textureView.getSurfaceTexture());
+                    focusPeakProcessorAp1.Reset(size.width, size.height,surface);
+                    cameraToMainHandler.post(() -> focusPeakProcessorAp1.setHistogramEnable(false));
+
+                    parametersHandler.get(SettingKeys.PreviewSize).SetValue(size.width + "x" + size.height, true);
+                    cameraHolder.setSurface(focusPeakProcessorAp1.getInputSurface());
+                    CameraStateEvents.fireCameraAspectRatioChangedEvent(size);
+                    focusPeakProcessorAp1.start();
+                    cameraHolder.StartPreview();
+                }
+                else
+                {
+                    cameraHolder.StopPreview();
+                    if (((CameraHolder)cameraHolder).canSetSurfaceDirect()) {
+                        cameraHolder.setSurface((Surface)null);
+                        Surface surface = new Surface(textureView.getSurfaceTexture());
+                        cameraHolder.setSurface(surface);
+                    }
+                    else
+                        ((CameraHolder)cameraHolder).setTextureView(textureView);
+
+                    Log.d(TAG, "set size to " + size.width + "x" + size.height);
+                    parametersHandler.get(SettingKeys.PreviewSize).SetValue(size.width + "x" + size.height, true);
+                    CameraStateEvents.fireCameraAspectRatioChangedEvent(size);
+                    cameraHolder.StartPreview();
+                }
 
             }
-            else if (moduleHandler.getCurrentModuleName().equals(getResString(R.string.module_video)))
+            else if (moduleHandler.getCurrentModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_video)))
             {
                 Size sizefromCam = new Size("1920x1080");
 
                 List<Size> sizes = new ArrayList<>();
-                String[] stringsSizes = parametersHandler.PreviewSize.getStringValues();
+                String[] stringsSizes = parametersHandler.get(SettingKeys.PreviewSize).getStringValues();
                 for (String s : stringsSizes) {
                     sizes.add(new Size(s));
                 }
                 final Size size = getOptimalPreviewSize(sizes, sizefromCam.width, sizefromCam.height,false);
 
+                if(size == null || textureView.getSurfaceTexture() == null)
+                    return;
+                cameraHolder.StopPreview();
+                if (focusPeakProcessorAp1 != null) {
+                    focusPeakProcessorAp1.kill();
+                }
+                
+                if (((CameraHolder)cameraHolder).canSetSurfaceDirect()) {
+                    cameraHolder.setSurface((Surface)null);
+                    Surface surface = new Surface(textureView.getSurfaceTexture());
+                    cameraHolder.setSurface(surface);
+                }
+                else
+                    ((CameraHolder)cameraHolder).setTextureView(textureView);
+
                 Log.d(TAG, "set size to " + size.width + "x" + size.height);
-                /*if (getAppSettingsManager().getApiString(AppSettingsManager.VIDEOPROFILE).contains("4k") &&parametersHandler.PreviewSize.GetValues().toString().contains("3840x"))
-                {
-                    parametersHandler.PreviewSize.SetValue(size.width + "x" + size.height, true);
-                    uiHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (extendedSurfaceView != null)
-                                extendedSurfaceView.setAspectRatio(3840, 2160);
-                            if (focusPeakProcessorAp1 != null)
-                                focusPeakProcessorAp1.SetAspectRatio(3840, 2160);
-                        }
-                    });
-
-                }else {*/
-                parametersHandler.PreviewSize.SetValue(size.width + "x" + size.height, true);
-                uiHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (extendedSurfaceView != null)
-                            extendedSurfaceView.setAspectRatio(size.width, size.height);
-                        if (focusPeakProcessorAp1 != null)
-                            focusPeakProcessorAp1.SetAspectRatio(size.width, size.height);
-                    }
-                });
-                //}
-
-
+                parametersHandler.get(SettingKeys.PreviewSize).SetValue(size.width + "x" + size.height, true);
+                CameraStateEvents.fireCameraAspectRatioChangedEvent(size);
+                cameraHolder.StartPreview();
             }
+            Log.d(TAG, "createPreviewRunner.run() done");
         }
-
     };
 
     private Size getOptimalPreviewSize(List<Size> sizes, int w, int h,boolean FocusPeakClamp) {
@@ -370,105 +283,227 @@ public class Camera1Fragment extends CameraFragmentAbstract implements ModuleCha
         double targetRatio = (double) w / h;
         if (sizes == null) return null;
         Size optimalSize = null;
-        double minDiff = Double.MAX_VALUE;
-        // Try to find an size match aspect ratio and size
-        for (Size size : sizes)
+        List<Size> aspectRatioMatches = new ArrayList<>();
+        double ratio;
+        for (Size s : sizes)
         {
-            if(!FocusPeakClamp) {
-                if (size.width <= 2560 && size.height <= 1440 && size.width >= 640 && size.height >= 480) {
-                    double ratio = (double) size.width / size.height;
-                    if (ratio < targetRatio + ASPECT_TOLERANCE && ratio > targetRatio - ASPECT_TOLERANCE) {
-                        optimalSize = size;
-                        minDiff = Math.abs(size.height - h);
-                        break;
-                    }
-
-                }
-            }
-            else {
-                if (size.width <= 1280 && size.height <= 720 && size.width >= 640 && size.height >= 480) {
-                    double ratio = (double) size.width / size.height;
-                    if (ratio < targetRatio + ASPECT_TOLERANCE && ratio > targetRatio - ASPECT_TOLERANCE) {
-                        optimalSize = size;
-                        minDiff = Math.abs(size.height - h);
-                        break;
-                    }
-
-                }
+            ratio = (double) s.width / s.height;
+            if (ratio <= targetRatio + ASPECT_TOLERANCE && ratio >= targetRatio - ASPECT_TOLERANCE) {
+                if (s.width <= 2560 && s.height <= 1440 && s.width >= 800 && s.height >= 600)
+                    aspectRatioMatches.add(s);
             }
         }
-        // Cannot find the one match the aspect ratio, ignore the requirement
-        if (optimalSize == null) {
-            minDiff = Double.MAX_VALUE;
-            for (Size size : sizes)
-            {
-                if(!FocusPeakClamp) {
-                    if (size.width <= 2560 && size.height <= 1440 && size.width >= 640 && size.height >= 480) {
-                        if (Math.abs(size.height - h) < minDiff) {
-                            optimalSize = size;
-                            minDiff = Math.abs(size.height - h);
-                        }
-                    }
-                }
-                else {
-                    if (size.width <= 1280 && size.height <= 720 && size.width >= 640 && size.height >= 480) {
-                        if (Math.abs(size.height - h) < minDiff) {
-                            optimalSize = size;
-                            minDiff = Math.abs(size.height - h);
-                        }
-                    }
-                }
-            }
+
+        if (aspectRatioMatches.size() > 0)
+        {
+            return Collections.max(aspectRatioMatches, new SizeCompare());
         }
-        Log.d(TAG, "Optimal preview size " + optimalSize.width + "x" + optimalSize.height);
-        return optimalSize;
+        else
+            return Collections.max(sizes,new SizeCompare());
     }
+
+    @Override
+    public void createCamera() {
+        Log.d(TAG,"FrameWork:" + SettingsManager.getInstance().getFrameWork() + " openlegacy:" + SettingsManager.get(SettingKeys.openCamera1Legacy).get());
+
+        if (SettingsManager.getInstance().getFrameWork() == Frameworks.LG) {
+            cameraHolder = new CameraHolderLG(Camera1Fragment.this, Frameworks.LG);
+            Log.d(TAG, "create LG camera");
+        }
+        else if (SettingsManager.getInstance().getFrameWork() == Frameworks.Moto_Ext) {
+            cameraHolder = new CameraHolderMotoX(Camera1Fragment.this, Frameworks.Moto_Ext);
+            Log.d(TAG, "create MotoExt camera");
+        }
+        else if (SettingsManager.getInstance().getFrameWork() == Frameworks.MTK) {
+            cameraHolder = new CameraHolderMTK(Camera1Fragment.this, Frameworks.MTK);
+            Log.d(TAG, "create Mtk camera");
+        }
+        else if (SettingsManager.getInstance().getFrameWork() == Frameworks.SonyCameraExtension)
+        {
+            cameraHolder = new CameraHolderSony(Camera1Fragment.this, Frameworks.SonyCameraExtension);
+        }
+        else if (SettingsManager.get(SettingKeys.openCamera1Legacy).get()) {
+            cameraHolder = new CameraHolderLegacy(Camera1Fragment.this, Frameworks.Default);
+            Log.d(TAG, "create Legacy camera");
+        }
+        else {
+            cameraHolder = new CameraHolder(Camera1Fragment.this, Frameworks.Default);
+            Log.d(TAG, "create Normal camera");
+        }
+        moduleHandler = new ModuleHandler(Camera1Fragment.this);
+        if (RenderScriptManager.isSupported() && ((CameraHolder)cameraHolder).canSetSurfaceDirect()) {
+            focusPeakProcessorAp1 = new RenderScriptProcessor(renderScriptManager, histogram, ImageFormat.NV21);
+        }
+        parametersHandler = new ParametersHandler(Camera1Fragment.this);
+
+        //moduleHandler.addListner(Camera1Fragment.this);
+        focusHandler = new FocusHandler(Camera1Fragment.this);
+
+        Log.d(TAG, "initModules");
+        moduleHandler.initModules();
+        Log.d(TAG, "Check Focuspeak");
+    }
+
+    @Override
+    public void initCamera() {
+        ((FocusHandler) focusHandler).startListning();
+        ((ParametersHandler) parametersHandler).LoadParametersFromCamera();
+        CameraStateEvents.fireCameraOpenFinishEvent();
+    }
+
+    @Override
+    public void startCamera() {
+        EventBusHelper.register(this);
+        if (!cameraIsOpen)
+            cameraIsOpen = cameraHolder.OpenCamera(SettingsManager.getInstance().getCameraIds()[SettingsManager.getInstance().GetCurrentCamera()]);
+        Log.d(TAG, "startCamera");
+    }
+
+    @Override
+    public void stopCamera() {
+        EventBusHelper.unregister(this);
+        Log.d(TAG, "Stop Camera");
+        if (focusPeakProcessorAp1 != null)
+            focusPeakProcessorAp1.kill();
+        if (cameraHolder != null)
+            cameraHolder.CloseCamera();
+        cameraIsOpen = false;
+    }
+
+    @Override
+    public void restartCamera() {
+        Log.d(TAG, "Stop Camera");
+        if (focusPeakProcessorAp1 != null)
+            focusPeakProcessorAp1.kill();
+        cameraHolder.CloseCamera();
+        cameraIsOpen = false;
+        if (!cameraIsOpen)
+            cameraIsOpen = cameraHolder.OpenCamera(SettingsManager.getInstance().getCameraIds()[SettingsManager.getInstance().GetCurrentCamera()]);
+        Log.d(TAG, "startCamera");
+    }
+
+    @Override
+    public void startPreview() {
+        Log.d(TAG, "Start Preview");
+        cameraHolder.StartPreview();
+    }
+
+    @Override
+    public void stopPreview() {
+        try {
+            Log.d(TAG, "Stop Preview");
+            if (cameraHolder != null)
+                cameraHolder.StopPreview();
+        }
+        catch (NullPointerException ex)
+        {
+            Log.WriteEx(ex);
+        }
+    }
+
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        Log.d(TAG, "surface created");
+        PreviewSurfaceRdy = true;
+        if (!cameraIsOpen)
+            startCameraAsync();
+        else
+            mainToCameraHandler.initCamera();
+    }
+
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+        PreviewSurfaceRdy =false;
+        return false;
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+    }
+
+    @Override
+    public void startListning() {
+        EventBusHelper.register(this);
+        if (focusHandler != null)
+            ((FocusHandler) focusHandler).startListning();
+    }
+
+    @Override
+    public void stopListning() {
+        EventBusHelper.unregister(this);
+        if (focusHandler != null)
+            ((FocusHandler) focusHandler).stopListning();
+    }
+
+    private class SizeCompare implements Comparator<Size>
+    {
+        @Override
+        public int compare(Size o1, Size o2) {
+            int calc = -1;
+            if (o1.width > o2.width)
+                calc++;
+            if (o1.height > o2.height)
+                calc++;
+            return calc;
+        }
+    }
+
+
 
     @Override
     public void onModuleChanged(String module)
     {
-        onPreviewSizeShouldChange.onStringValueChanged(parametersHandler.Focuspeak.GetStringValue());
+        if (parametersHandler.get(SettingKeys.Focuspeak) == null)
+            return;
+        try {
+            mainToCameraHandler.removeCallbacks(createPreviewRunner);
+            mainToCameraHandler.post(createPreviewRunner);
+        }
+        catch (NullPointerException ex)
+        {
+            Log.WriteEx(ex);
+        }
+
     }
 
     @Override
     public int getMargineLeft() {
-        return extendedSurfaceView.getLeft();
+        return textureView.getLeft();
     }
 
     @Override
     public int getMargineRight() {
-        return extendedSurfaceView.getRight();
+        return textureView.getRight();
     }
 
     @Override
     public int getMargineTop() {
-        return extendedSurfaceView.getTop();
+        return textureView.getTop();
     }
 
     @Override
     public int getPreviewWidth() {
-        return extendedSurfaceView.getWidth();
+        return textureView.getWidth();
     }
 
     @Override
     public int getPreviewHeight() {
-        return extendedSurfaceView.getHeight();
+        return textureView.getHeight();
     }
 
     @Override
-    public FocuspeakProcessor getFocusPeakProcessor() {
+    public RenderScriptProcessorInterface getFocusPeakProcessor() {
         return focusPeakProcessorAp1;
     }
 
-    @Override
-    public String getResString(int id) {
-        return getAppSettingsManager().getResString(id);
-    }
 
-    @Override
-    public SurfaceView getSurfaceView() {
-        return extendedSurfaceView;
-    }
+
 
 
 }

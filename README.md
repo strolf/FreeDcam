@@ -8,12 +8,21 @@ FreeDcam
 * [Camera Ui Icon](#camera-ui-icons)
 * [Camera1 Dng Supported Devices](#camera1-dng-supported-devices)
 * [How to create a Custom Matrix](#how-to-create-a-custom-matrix)
+* [How to create a ToneMapProfile](#how-to-create-a-tonemapprofile)
 * [MSM Camera Blobs Logging for Devs](#msm-camera-blobs-logging-for-devs)
 * [License](#license)
 
 <img src="/playstoreimages/freedcam.jpg" width="500" height="280">
 
-##Build
+[<img src="https://play.google.com/intl/en_us/badges/images/generic/en-play-badge.png"
+     alt="Get it on Google Play"
+     height="80">](https://play.google.com/store/apps/details?id=troop.com.freedcam)
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+     alt="Get it on F-Droid"
+     height="80">](https://f-droid.org/packages/troop.com.freedcam/)
+
+Build
+=====
 To build use latest [Android Studio](http://developer.android.com/sdk/installing/studio.html)  
 Use NDK 12b!
 
@@ -24,7 +33,8 @@ For ndk build set in your *local.properties*
 Yes you need `\\` that for the folderpath
 
 
-##Supported Apis:  
+Supported Apis:
+===========
 [android.hardware.camera](http://developer.android.com/reference/android/hardware/Camera.html)  
 
 
@@ -71,7 +81,7 @@ In that case send us the raw/bayer file and it will work soon.
 - Select Highspeed
 - Save the Profile and close the VideoProfileEditor.
 
-* **Q** Why cant i decompile apps build with nougat sdk
+* **Q** Why cant i decompile apps build with nougat sdk  
 **A** They changed the dex header version. Use a hexeditor to change the version from 37 to 35 and dex2jar works
 
 
@@ -113,7 +123,7 @@ Camera Ui Icons
                 </tr>
                 <tr>
                     <td><img src="/app/src/main/res/drawable-hdpi/quck_set_ae.png" width="50" height="50"></td>
-                    <td>Exposure Mode Mode</td>
+                    <td>Exposure Mode</td>
                 </tr>
                 <tr>
                     <td><img src="/app/src/main/res/drawable-hdpi/ae_priority.png" width="50" height="50"></td>
@@ -219,6 +229,8 @@ Camera Ui Icons
 Camera1 Dng Supported Devices
 =============================
 
+List is not up to date
+
 KK = Kitkat,L = Lollipop , M = Marshmallow
 
 [true]: /playstoreimages/check.png
@@ -275,6 +287,7 @@ KK = Kitkat,L = Lollipop , M = Marshmallow
 |Umi Rome X             | ![true] | ![true]| ![true]| ![true]|
 |Vivo Xplay             | ![true] | ![false]| ![false]| ![false]|
 |WileyFox Swift         | ![true] | ![true]| ![true]| ![false]|
+|Xiaomi Mi A1           | ![true] | ![true]| ![true]| ![true]|
 |Xiaomi Mi3             | ![true] | ![true]| ![true]| ![false]|
 |Xiaomi Mi3w            | ![true] | ![true]| ![true]| ![false]|
 |Xiaomi Mi4c            | ![true] | ![true]| ![true]| ![false]|
@@ -320,6 +333,39 @@ Open the saved Dng now into exiftools or a simliar tool, wich can read metadata,
         <noise>0.8853462669953089, 0,  0.8853462669953089f, 0, 0.8853462669953089f,0</noise>
     </matrix> 
 </matrixes>
+```
+
+How to create a ToneMapProfile
+=============================
+Can get used to apply custom profiles direct to a dng.  
+data can get created with various tools.  
+like from a dcp with dcamprof or dcptools.  
+or extracted from a existing dng with exiftools.
+
+tonemapprofiles.xml
+```
+<tonemapprofiles>
+
+<!-- thats the first profile -->
+    <tonemapprofile name="linear">
+        <tonecurve>0,0,0.25,0.25,0.5,0.5,0.75,0.75,1,1</tonecurve> use "," to split. ignores whitespace and line breaks,
+    
+    <baselineexposure>0.35</baselineexposure> set to avoid the hidden exposure
+    <huesatmapdims>90 25 1</huesatmapdims> should only contain whitespaces for splitting no line breaks!
+    <huesatmapdata1>0 0 .... 1 1</huesatmapdata1> should only contain whitespaces for splitting no line breaks!
+    </tonemapprofile>
+
+
+    <!-- next profile -->
+    <tonemapprofile name="srgb">
+        <tonecurve>0,0,......,1,1</tonecurve>
+    </tonemapprofile>
+    
+    <tonemapprofile name="iso100">
+        <baselineexposure>-0.35</baselineexposure>
+    </tonemapprofile>
+</tonemapprofiles>
+
 ```
 
 Copy that file now on your phones internalSD/DCIM/FreeDcam/config/matrixes.xml and you can select it inside Freedcam.  

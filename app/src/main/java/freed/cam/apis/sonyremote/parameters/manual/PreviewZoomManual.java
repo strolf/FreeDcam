@@ -25,19 +25,21 @@ import android.os.Build.VERSION_CODES;
 import java.util.Set;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.sonyremote.sonystuff.SimpleStreamSurfaceView;
+import freed.cam.apis.sonyremote.PreviewStreamDrawer;
+import freed.settings.SettingKeys;
 
 /**
  * Created by troop on 09.04.2016.
  */
 public class PreviewZoomManual extends BaseManualParameterSony
 {
-    private final SimpleStreamSurfaceView surfaceView;
+    private final PreviewStreamDrawer surfaceView;
 
-    public PreviewZoomManual(SimpleStreamSurfaceView surfaceView, CameraWrapperInterface cameraUiWrapper) {
-        super("", "", "", cameraUiWrapper);
+    public PreviewZoomManual(PreviewStreamDrawer surfaceView, CameraWrapperInterface cameraUiWrapper) {
+        super("", "", "", cameraUiWrapper, SettingKeys.M_PreviewZoom);
         this.surfaceView = surfaceView;
-        isSupported = VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP;
+        if(VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP)
+            setViewState(ViewState.Visible);
         stringvalues = new String[] {"1","2","4","8","10","12","14","16","18","20"};
     }
 
@@ -47,29 +49,13 @@ public class PreviewZoomManual extends BaseManualParameterSony
     }
 
     @Override
-    public boolean IsSupported() {
-        return isSupported;
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return true;
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return isSupported;
-    }
-
-    @Override
     public String[] getStringValues() {
         return stringvalues;
     }
 
     @Override
-    public void SetValue(int valueToSet) {
-        int zoomFactor = Integer.parseInt(stringvalues[valueToSet]);
-        surfaceView.PreviewZOOMFactor = zoomFactor;
+    public void SetValue(int valueToSet, boolean setToCamera) {
+        surfaceView.PreviewZOOMFactor = Integer.parseInt(stringvalues[valueToSet]);
         fireIntValueChanged(valueToSet);
     }
 

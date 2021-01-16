@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: tiff.h,v 1.70 2016-01-23 21:20:34 erouault Exp $ */
 
 /*
  * Copyright (c) 1988-1997 Sam Leffler
@@ -201,7 +201,7 @@ typedef enum {
 #define	    PHOTOMETRIC_CIELAB		8	/* !1976 CIE L*a*b* */
 #define	    PHOTOMETRIC_ICCLAB		9	/* ICC L*a*b* [Adobe TIFF Technote 4] */
 #define	    PHOTOMETRIC_ITULAB		10	/* ITU L*a*b* */
-#define 	PHOTOMETRIC_CFA 		32803 /* color filter array */
+#define	    PHOTOMETRIC_CFA		32803	/* color filter array */
 #define     PHOTOMETRIC_LOGL		32844	/* CIE Log2(L) */
 #define     PHOTOMETRIC_LOGLUV		32845	/* CIE Log2(L) (u',v') */
 #define	TIFFTAG_THRESHHOLDING		263	/* +thresholding used on data */
@@ -279,7 +279,7 @@ typedef enum {
 #define     PREDICTOR_FLOATINGPOINT	3	/* floating point predictor */
 #define	TIFFTAG_WHITEPOINT		318	/* image white point */
 #define	TIFFTAG_PRIMARYCHROMATICITIES	319	/* !primary chromaticities */
-#define	TIFFTAG_COLORMAP		320	/* RGB map for pallette image */
+#define	TIFFTAG_COLORMAP		320	/* RGB map for palette image */
 #define	TIFFTAG_HALFTONEHINTS		321	/* !highlight+shadow info */
 #define	TIFFTAG_TILEWIDTH		322	/* !tile width in pixels */
 #define	TIFFTAG_TILELENGTH		323	/* !tile height in pixels */
@@ -358,7 +358,7 @@ typedef enum {
 #define	TIFFTAG_JPEGRESTARTINTERVAL	515	/* !restart interval length */
 #define	TIFFTAG_JPEGLOSSLESSPREDICTORS	517	/* !lossless proc predictor */
 #define	TIFFTAG_JPEGPOINTTRANSFORM	518	/* !lossless point transform */
-#define	TIFFTAG_JPEGQTABLES		519	/* !Q matrice offsets */
+#define	TIFFTAG_JPEGQTABLES		519	/* !Q matrix offsets */
 #define	TIFFTAG_JPEGDCTABLES		520	/* !DCT table offsets */
 #define	TIFFTAG_JPEGACTABLES		521	/* !AC coefficient offsets */
 #define	TIFFTAG_YCBCRCOEFFICIENTS	529	/* !RGB -> YCbCr transform */
@@ -403,10 +403,8 @@ typedef enum {
 #define TIFFTAG_PIXAR_MATRIX_WORLDTOCAMERA 33306
 /* tag 33405 is a private tag registered to Eastman Kodak */
 #define TIFFTAG_WRITERSERIALNUMBER      33405   /* device serial number */
-#define TIFFTAG_CFAREPEATPATTERNDIM 33421 /* dimensions of CFA pattern */
-#define TIFFTAG_CFAPATTERN 33422 /* color filter array pattern */
-#define TIFFTAG_OPC2 51009 /* OpCode 2 lens shit */
-#define TIFFTAG_OPC3 51022 /* OpCode 3 lens shit */
+#define TIFFTAG_CFAREPEATPATTERNDIM	33421	/* dimensions of CFA pattern */
+#define TIFFTAG_CFAPATTERN		33422	/* color filter array pattern */
 /* tag 33432 is listed in the 6.0 spec w/ unknown ownership */
 #define	TIFFTAG_COPYRIGHT		33432	/* copyright string */
 /* IPTC TAG from RichTIFF specifications */
@@ -476,37 +474,17 @@ typedef enum {
 						   area */
 #define TIFFTAG_DEFAULTCROPSIZE		50720	/* &size of the final image 
 						   area */
-#define TIFFTAG_COLORMATRIX1		50721	/* &XYZ->reference color space
-						   transformation matrix 1 */
-#define TIFFTAG_COLORMATRIX2		50722	/* &XYZ->reference color space
-						   transformation matrix 2 */
-#define TIFFTAG_CAMERACALIBRATION1	50723	/* &calibration matrix 1 */
-#define TIFFTAG_CAMERACALIBRATION2	50724	/* &calibration matrix 2 */
-#define TIFFTAG_REDUCTIONMATRIX1	50725	/* &dimensionality reduction
-						   matrix 1 */
-#define TIFFTAG_REDUCTIONMATRIX2	50726	/* &dimensionality reduction
-						   matrix 2 */
-////////////////////////////////////////////////////////////////////////////////////
-#define TIFFTAG_FOWARDMATRIX1		50964
-#define TIFFTAG_FOWARDMATRIX2		50965
-#define TIFFTAG_NOISEPROFILE		51041
-#define TIFFTAG_PROFILETONECURVE	50940
-#define TIFFTAG_PROFILEHUESATMAPDIMS 50937
-#define TIFFTAG_PROFILEHUESATMAPDATA1 50938
-#define TIFFTAG_PROFILEHUESATMAPDATA2 50939
-#define TIFFTAG_PROFILENAME 50936;
+
+
 
 #define TIFFTAG_ANALOGBALANCE		50727	/* &gain applied the stored raw
 						   values*/
-//////////////////////////////////////////////////////////////////////////////////
-#define TIFFTAG_ASSHOTNEUTRAL		50728	/* &selected white balance in
-						   linear reference space */
+
 #define TIFFTAG_ASSHOTWHITEXY		50729	/* &selected white balance in
 						   x-y chromaticity
 						   coordinates */
-#define TIFFTAG_BASELINEEXPOSURE	50730	/* &how much to move the zero point */
-#define TIFFTAG_BASELINEEXPOSUREOFFSET	51109
-
+#define TIFFTAG_BASELINEEXPOSURE	50730	/* &how much to move the zero
+						   point */
 #define TIFFTAG_BASELINENOISE		50731	/* &relative noise level */
 #define TIFFTAG_BASELINESHARPNESS	50732	/* &relative amount of
 						   sharpening */
@@ -617,42 +595,6 @@ typedef enum {
 #define TIFFTAG_PERSAMPLE       65563	/* interface for per sample tags */
 #define     PERSAMPLE_MERGED        0	/* present as a single value */
 #define     PERSAMPLE_MULTI         1	/* present as multiple values */
-//////////////////////////////////////////////////////////////////////////////////////GPS Tags 09-02-2015/////////////////////////////////////////////
-#define GPSTAG_GPSVersionID		0
-#define GPSTAG_GPSLatitudeRef		1
-#define GPSTAG_GPSLatitude		2
-#define GPSTAG_GPSLongitudeRef		3
-#define GPSTAG_GPSLongitude		4
-#define GPSTAG_GPSAltitudeRef		5
-#define GPSTAG_GPSAltitude		6
-#define GPSTAG_GPSTimeStamp		7
-#define GPSTAG_GPSSatellites		8
-#define GPSTAG_GPSStatus		9
-#define GPSTAG_GPSMeasureMode		10
-#define GPSTAG_GPSDOP		11
-#define GPSTAG_GPSSpeedRef		12
-#define GPSTAG_GPSSpeed		13
-#define GPSTAG_GPSTrackRef		14
-#define GPSTAG_GPSTrack		15
-#define GPSTAG_GPSImgDirectionRef		16
-#define GPSTAG_GPSImgDirection		17
-#define GPSTAG_GPSMapDatum		18
-#define GPSTAG_GPSDestLatitudeRef		19
-#define GPSTAG_GPSDestLatitude		20
-#define GPSTAG_GPSDestLongitudeRef		21
-#define GPSTAG_GPSDestLongitude		22
-#define GPSTAG_GPSDestBearingRef		23
-#define GPSTAG_GPSDestBearing		24
-#define GPSTAG_GPSDestDistanceRef		25
-#define GPSTAG_GPSDestDistance		26
-#define GPSTAG_GPSProccesingMethod		27
-#define GPSTAG_GPSAreaInformation		28
-#define GPSTAG_GPSDatestamp		29
-#define GPSTAG_GPSDifferential		30
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 /*
  * EXIF tags
@@ -719,7 +661,65 @@ typedef enum {
 #define EXIFTAG_GAINCONTROL		41991	/* Gain control */
 #define EXIFTAG_IMAGEUNIQUEID		42016	/* Unique image ID */
 
+#define     TIFFTAG_EP_STANDARD_ID         37398
+#define TIFFTAG_OPC2 51009 /* OpCode 2 lens shit */
+#define TIFFTAG_OPC3 51022 /* OpCode 3 lens shit */
+#define TIFFTAG_FOWARDMATRIX1		50964
+#define TIFFTAG_FOWARDMATRIX2		50965
+#define TIFFTAG_NOISEPROFILE		51041
+#define TIFFTAG_PROFILETONECURVE	50940
+#define TIFFTAG_PROFILEHUESATMAPDIMS 50937
+#define TIFFTAG_PROFILEHUESATMAPDATA1 50938
+#define TIFFTAG_PROFILEHUESATMAPDATA2 50939
+#define TIFFTAG_BASELINEEXPOSUREOFFSET	51109
+#define TIFFTAG_COLORMATRIX1		50721	/* &XYZ->reference color space
+						   transformation matrix 1 */
+#define TIFFTAG_COLORMATRIX2		50722	/* &XYZ->reference color space
+						   transformation matrix 2 */
+#define TIFFTAG_ASSHOTNEUTRAL		50728	/* &selected white balance in
+						   linear reference space */
+#define TIFFTAG_CAMERACALIBRATION1	50723	/* &calibration matrix 1 */
+#define TIFFTAG_CAMERACALIBRATION2	50724	/* &calibration matrix 2 */
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////GPS Tags 09-02-2015/////////////////////////////////////////////
+#define GPSTAG_GPSVersionID		0
+#define GPSTAG_GPSLatitudeRef		1
+#define GPSTAG_GPSLatitude		2
+#define GPSTAG_GPSLongitudeRef		3
+#define GPSTAG_GPSLongitude		4
+#define GPSTAG_GPSAltitudeRef		5
+#define GPSTAG_GPSAltitude		6
+#define GPSTAG_GPSTimeStamp		7
+#define GPSTAG_GPSSatellites		8
+#define GPSTAG_GPSStatus		9
+#define GPSTAG_GPSMeasureMode		10
+#define GPSTAG_GPSDOP		11
+#define GPSTAG_GPSSpeedRef		12
+#define GPSTAG_GPSSpeed		13
+#define GPSTAG_GPSTrackRef		14
+#define GPSTAG_GPSTrack		15
+#define GPSTAG_GPSImgDirectionRef		16
+#define GPSTAG_GPSImgDirection		17
+#define GPSTAG_GPSMapDatum		18
+#define GPSTAG_GPSDestLatitudeRef		19
+#define GPSTAG_GPSDestLatitude		20
+#define GPSTAG_GPSDestLongitudeRef		21
+#define GPSTAG_GPSDestLongitude		22
+#define GPSTAG_GPSDestBearingRef		23
+#define GPSTAG_GPSDestBearing		24
+#define GPSTAG_GPSDestDistanceRef		25
+#define GPSTAG_GPSDestDistance		26
+#define GPSTAG_GPSProccesingMethod		27
+#define GPSTAG_GPSAreaInformation		28
+#define GPSTAG_GPSDateStamp		29
+#define GPSTAG_GPSDifferential		30
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
 #endif /* _TIFF_ */
+
+
 
 /* vim: set ts=8 sts=8 sw=8 noet: */
 /*

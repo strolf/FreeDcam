@@ -23,8 +23,10 @@ import android.hardware.Camera.Parameters;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
 
 /**
  * Created by Ingo on 25.12.2014.
@@ -33,22 +35,27 @@ public class ExposureLockParameter extends BaseModeParameter
 {
     final String TAG = ExposureLockParameter.class.getSimpleName();
     public ExposureLockParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, cameraUiWrapper);
+        super(parameters, cameraUiWrapper, SettingKeys.ExposureLock);
+        try {
+            if (parameters.isAutoExposureLockSupported())
+                setViewState(ViewState.Visible);
+        }
+        catch (NullPointerException ex)
+        {
+            setViewState(ViewState.Hidden);
+        }
+
     }
 
     @Override
-    public boolean IsSupported() {
-        return parameters.isAutoExposureLockSupported();
-    }
-
-    @Override
-    public void SetValue(String valueToSet, boolean setToCam)
+    public void setValue(String valueToSet, boolean setToCam)
     {
         if (parameters.isAutoExposureLockSupported())
             parameters.setAutoExposureLock(Boolean.parseBoolean(valueToSet));
 
+        if (setToCam)
             ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
-            onStringValueChanged(valueToSet);
+        fireStringValueChanged(valueToSet);
     }
 
     @Override
@@ -60,7 +67,7 @@ public class ExposureLockParameter extends BaseModeParameter
 
     @Override
     public String[] getStringValues() {
-        return new String[]{cameraUiWrapper.getResString(R.string.true_), cameraUiWrapper.getResString(R.string.false_)};
+        return new String[]{FreedApplication.getStringFromRessources(R.string.true_), FreedApplication.getStringFromRessources(R.string.false_)};
     }
 
 }

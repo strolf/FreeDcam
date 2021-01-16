@@ -19,20 +19,26 @@
 
 package freed.cam.apis.sonyremote.parameters;
 
-import android.content.Context;
 import android.graphics.Rect;
+import android.text.TextUtils;
+
+import com.troop.freedcam.R;
 
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.AbstractParameterHandler;
 import freed.cam.apis.basecamera.parameters.modes.ModuleParameters;
 import freed.cam.apis.sonyremote.CameraHolderSony;
 import freed.cam.apis.sonyremote.FocusHandler;
+import freed.cam.apis.sonyremote.PreviewStreamDrawer;
 import freed.cam.apis.sonyremote.SonyCameraRemoteFragment;
 import freed.cam.apis.sonyremote.modules.I_CameraStatusChanged;
 import freed.cam.apis.sonyremote.modules.PictureModuleSony;
@@ -41,7 +47,6 @@ import freed.cam.apis.sonyremote.parameters.manual.ExposureCompManualParameterSo
 import freed.cam.apis.sonyremote.parameters.manual.PreviewZoomManual;
 import freed.cam.apis.sonyremote.parameters.manual.ProgramShiftManualSony;
 import freed.cam.apis.sonyremote.parameters.manual.WbCTManualSony;
-import freed.cam.apis.sonyremote.parameters.manual.ZoomManualSony;
 import freed.cam.apis.sonyremote.parameters.modes.BaseModeParameterSony;
 import freed.cam.apis.sonyremote.parameters.modes.ContShootModeParameterSony;
 import freed.cam.apis.sonyremote.parameters.modes.FocusModeSony;
@@ -56,7 +61,10 @@ import freed.cam.apis.sonyremote.parameters.modes.WhiteBalanceModeSony;
 import freed.cam.apis.sonyremote.parameters.modes.ZoomSettingSony;
 import freed.cam.apis.sonyremote.sonystuff.SimpleCameraEventObserver;
 import freed.cam.apis.sonyremote.sonystuff.SimpleRemoteApi;
-import freed.cam.apis.sonyremote.sonystuff.SimpleStreamSurfaceView;
+import freed.cam.events.CameraStateEvents;
+import freed.renderscript.RenderScriptManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
 
@@ -69,7 +77,7 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
     public SimpleRemoteApi mRemoteApi;
     public Set<String> mAvailableCameraApiSet;
     private final List<I_SonyApi> parametersChangedList;
-    private final SimpleStreamSurfaceView surfaceView;
+    private final PreviewStreamDrawer surfaceView;
     private final CameraWrapperInterface cameraUiWrapper;
     private String cameraStatus = "IDLE";
 
@@ -77,21 +85,42 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
     public CameraHolderSony.I_CameraShotMode cameraShotMode;
 
 
-    public ParameterHandler(CameraWrapperInterface cameraUiWrapper, SimpleStreamSurfaceView surfaceView, Context context)
+    public ParameterHandler(CameraWrapperInterface cameraUiWrapper, PreviewStreamDrawer surfaceView)
     {
         super(cameraUiWrapper);
         parametersChangedList = new ArrayList<>();
         this.surfaceView = surfaceView;
         this.cameraUiWrapper =cameraUiWrapper;
+        if (RenderScriptManager.isSupported()) {
+            SettingsManager.get(SettingKeys.FOCUSPEAK_COLOR).setValues(FreedApplication.getContext().getResources().getStringArray(R.array.focuspeakColors));
+            SettingsManager.get(SettingKeys.FOCUSPEAK_COLOR).set(SettingsManager.get(SettingKeys.FOCUSPEAK_COLOR).getValues()[0]);
+            SettingsManager.get(SettingKeys.FOCUSPEAK_COLOR).setIsSupported(true);
+        }
     }
 
     public void SetCameraApiSet(Set<String> mAvailableCameraApiSet)
     {
         this.mAvailableCameraApiSet = mAvailableCameraApiSet;
+        logApiSet(mAvailableCameraApiSet);
 
         Log.d(TAG, "Throw parametersChanged");
         throwSonyApiChanged(mAvailableCameraApiSet);
 
+    }
+
+    private void logApiSet(Set<String> mAvailableCameraApiSet)
+    {
+        Log.d(TAG,Arrays.toString(mAvailableCameraApiSet.toArray()));
+    }
+
+    public boolean canStartBulbCapture()
+    {
+        return  mAvailableCameraApiSet.contains("startBulbShooting");
+    }
+
+    public boolean canStopBulbCapture()
+    {
+        return  mAvailableCameraApiSet.contains("stopBulbShooting");
     }
 
     public String GetCameraStatus()
@@ -110,73 +139,81 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
         }
     }
 
+    public void addApiChangedListner(I_SonyApi sonyApi)
+    {
+        parametersChangedList.add(sonyApi);
+    }
+
     private void createParameters()
     {
-        Module = new ModuleParameters(cameraUiWrapper, appSettingsManager);
-        PictureSize = new PictureSizeSony(mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) PictureSize);
+        add(SettingKeys.Module, new ModuleParameters(cameraUiWrapper));
+        add(SettingKeys.PictureSize, new PictureSizeSony(mRemoteApi,cameraUiWrapper));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.PictureSize));
 
-        PictureFormat = new PictureFormatSony(mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) PictureFormat);
+        add(SettingKeys.PictureFormat, new PictureFormatSony(mRemoteApi,cameraUiWrapper));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.PictureFormat));
 
-        FlashMode = new BaseModeParameterSony("getFlashMode", "setFlashMode", "getAvailableFlashMode", mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) FlashMode);
+        add(SettingKeys.FlashMode, new BaseModeParameterSony("getFlashMode", "setFlashMode", "getAvailableFlashMode", mRemoteApi,cameraUiWrapper,SettingKeys.FlashMode));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.FlashMode));
 
-        ExposureMode = new BaseModeParameterSony("getExposureMode", "setExposureMode", "getAvailableExposureMode", mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) ExposureMode);
+        add(SettingKeys.ExposureMode, new BaseModeParameterSony("getExposureMode", "setExposureMode", "getAvailableExposureMode", mRemoteApi,cameraUiWrapper,SettingKeys.ExposureMode));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.ExposureMode));
 
-        ContShootMode = new ContShootModeParameterSony(mRemoteApi, cameraUiWrapper.getModuleHandler());
-        parametersChangedList.add((BaseModeParameterSony) ContShootMode);
+        add(SettingKeys.ContShootMode, new ContShootModeParameterSony(mRemoteApi, cameraUiWrapper.getModuleHandler(),cameraUiWrapper));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.ContShootMode));
 
-        ContShootModeSpeed = new BaseModeParameterSony("getContShootingSpeed", "setContShootingSpeed", "getAvailableContShootingSpeed", mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) ContShootModeSpeed);
+        add(SettingKeys.ContShootModeSpeed, new BaseModeParameterSony("getContShootingSpeed", "setContShootingSpeed", "getAvailableContShootingSpeed", mRemoteApi,cameraUiWrapper, SettingKeys.ContShootModeSpeed));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.ContShootModeSpeed));
 
-        FocusMode = new FocusModeSony("getFocusMode", "setFocusMode", "getAvailableFocusMode", mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) FocusMode);
+        add(SettingKeys.FocusMode, new FocusModeSony("getFocusMode", "setFocusMode", "getAvailableFocusMode", mRemoteApi,cameraUiWrapper));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.FocusMode));
 
-        ObjectTracking = new ObjectTrackingSony(mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) ObjectTracking);
+        add(SettingKeys.ObjectTracking, new ObjectTrackingSony(mRemoteApi,cameraUiWrapper));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.ObjectTracking));
 
-        ZoomSetting = new ZoomSettingSony(mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) ZoomSetting);
+        add(SettingKeys.ZoomSetting, new ZoomSettingSony(mRemoteApi,cameraUiWrapper));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.ZoomSetting));
 
 
-        Zoom = new ZoomManualSony(cameraUiWrapper);
-        parametersChangedList.add((ZoomManualSony) Zoom);
-        ManualShutter = new BaseManualParameterSony("getShutterSpeed", "getAvailableShutterSpeed","setShutterSpeed", cameraUiWrapper);
-        parametersChangedList.add((BaseManualParameterSony) ManualShutter);
-        ManualFNumber = new BaseManualParameterSony("getFNumber","getAvailableFNumber","setFNumber", cameraUiWrapper);
-        parametersChangedList.add((BaseManualParameterSony) ManualFNumber);
-        ManualIso = new BaseManualParameterSony("getIsoSpeedRate", "getAvailableIsoSpeedRate","setIsoSpeedRate", cameraUiWrapper);
-        parametersChangedList.add((BaseManualParameterSony) ManualIso);
+        /*Zoom = new ZoomManualSony(cameraUiWrapper);
+        parametersChangedList.add((ZoomManualSony) Zoom);*/
+        add(SettingKeys.M_ExposureTime, new BaseManualParameterSony("getShutterSpeed", "getAvailableShutterSpeed","setShutterSpeed", cameraUiWrapper,SettingKeys.M_ExposureTime));
+        parametersChangedList.add((BaseManualParameterSony) get(SettingKeys.M_ExposureTime));
 
-        ManualExposure = new ExposureCompManualParameterSony(cameraUiWrapper);
-        parametersChangedList.add((BaseManualParameterSony) ManualExposure);
+        add(SettingKeys.M_Fnumber, new BaseManualParameterSony("getFNumber","getAvailableFNumber","setFNumber", cameraUiWrapper,SettingKeys.M_Fnumber));
+        parametersChangedList.add((BaseManualParameterSony) get(SettingKeys.M_Fnumber));
 
-        ProgramShift = new ProgramShiftManualSony(cameraUiWrapper);
-        parametersChangedList.add((BaseManualParameterSony) ProgramShift);
+        add(SettingKeys.M_ManualIso, new BaseManualParameterSony("getIsoSpeedRate", "getAvailableIsoSpeedRate","setIsoSpeedRate", cameraUiWrapper,SettingKeys.M_ManualIso));
+        parametersChangedList.add((BaseManualParameterSony) get(SettingKeys.M_ManualIso));
 
-        CCT = new WbCTManualSony(cameraUiWrapper);
-        parametersChangedList.add((BaseManualParameterSony) CCT);
+        add(SettingKeys.M_ExposureCompensation, new ExposureCompManualParameterSony(cameraUiWrapper));
+        parametersChangedList.add((BaseManualParameterSony) get(SettingKeys.M_ExposureCompensation));
 
-        WhiteBalanceMode = new WhiteBalanceModeSony(mRemoteApi, (WbCTManualSony) CCT);
-        parametersChangedList.add((BaseModeParameterSony) WhiteBalanceMode);
+        add(SettingKeys.M_ProgramShift, new ProgramShiftManualSony(cameraUiWrapper));
+        parametersChangedList.add((BaseManualParameterSony) get(SettingKeys.M_ProgramShift));
 
-        PostViewSize = new BaseModeParameterSony("getPostviewImageSize","setPostviewImageSize","getAvailablePostviewImageSize", mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) PostViewSize);
+        add(SettingKeys.M_Whitebalance, new WbCTManualSony(cameraUiWrapper));
+        parametersChangedList.add((BaseManualParameterSony) get(SettingKeys.M_Whitebalance));
 
-        VideoSize = new BaseModeParameterSony("getMovieQuality", "setMovieQuality", "getAvailableMovieQuality", mRemoteApi);
-        parametersChangedList.add((BaseModeParameterSony) VideoSize);
+        add(SettingKeys.WhiteBalanceMode, new WhiteBalanceModeSony(mRemoteApi, (WbCTManualSony) get(SettingKeys.M_Whitebalance),cameraUiWrapper));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.WhiteBalanceMode));
 
-        Focuspeak = new FocusPeakSony(surfaceView);
-        parametersChangedList.add((BaseModeParameterSony) Focuspeak);
+        add(SettingKeys.PostViewSize, new BaseModeParameterSony("getPostviewImageSize","setPostviewImageSize","getAvailablePostviewImageSize", mRemoteApi,cameraUiWrapper,SettingKeys.PostViewSize));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.PostViewSize));
 
-        NightMode = new NightModeSony(surfaceView);
-        parametersChangedList.add((BaseModeParameterSony) NightMode);
+        add(SettingKeys.VideoSize, new BaseModeParameterSony("getMovieQuality", "setMovieQuality", "getAvailableMovieQuality", mRemoteApi,cameraUiWrapper,SettingKeys.VideoSize));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.VideoSize));
 
-        PreviewZoom = new PreviewZoomManual(surfaceView, cameraUiWrapper);
+        add(SettingKeys.Focuspeak, new FocusPeakSony(surfaceView));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.Focuspeak));
 
-        scalePreview = new ScalePreviewModeSony(surfaceView);
+        add(SettingKeys.NightMode, new NightModeSony(surfaceView));
+        parametersChangedList.add((BaseModeParameterSony) get(SettingKeys.NightMode));
+        //get(SettingKeys.EnableRenderScript).addEventListner((ParameterEvents) get(SettingKeys.NightMode));
+
+        add(SettingKeys.M_PreviewZoom, new PreviewZoomManual(surfaceView, cameraUiWrapper));
+
+        add(SettingKeys.SCALE_PREVIEW, new ScalePreviewModeSony(surfaceView));
 
     }
 
@@ -231,7 +268,7 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
 
     @Override
     public void onTimout() {
-        cameraUiWrapper.onCameraError("Camera connection timed out");
+        CameraStateEvents.fireCameraErrorEvent("Camera connection timed out");
         ((SonyCameraRemoteFragment)cameraUiWrapper).stopEventObserver();
     }
 
@@ -240,9 +277,7 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
 
         synchronized (mAvailableCameraApiSet) {
             mAvailableCameraApiSet.clear();
-            for (String api : apis) {
-                mAvailableCameraApiSet.add(api);
-            }
+            mAvailableCameraApiSet.addAll(apis);
             SetCameraApiSet(mAvailableCameraApiSet);
         }
     }
@@ -250,23 +285,23 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
     @Override
     public void onZoomPositionChanged(int zoomPosition)
     {
-        ((ZoomManualSony)Zoom).setZoomsHasChanged(zoomPosition);
+        //((ZoomManualSony)Zoom).setZoomsHasChanged(zoomPosition);
     }
 
     @Override
     public void onIsoChanged(String iso)
     {
-        ManualIso.fireStringValueChanged(iso);
+        get(SettingKeys.M_ManualIso).fireStringValueChanged(iso);
     }
 
     @Override
     public void onIsoValuesChanged(String[] isovals) {
-        ManualIso.fireStringValuesChanged(isovals);
+        get(SettingKeys.M_ManualIso).fireStringValuesChanged(isovals);
     }
 
     @Override
     public void onFnumberValuesChanged(String[] fnumbervals) {
-        ManualFNumber.fireStringValuesChanged(fnumbervals);
+        get(SettingKeys.M_Fnumber).fireStringValuesChanged(fnumbervals);
     }
 
     @Override
@@ -281,24 +316,24 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
 
     @Override
     public void onExposureCompensationChanged(int epxosurecomp) {
-        ManualExposure.fireIntValueChanged(epxosurecomp);
+        get(SettingKeys.M_ExposureCompensation).fireIntValueChanged(epxosurecomp);
     }
 
     @Override
     public void onShutterSpeedChanged(String shutter) {
-        ManualShutter.fireStringValueChanged(shutter);
+        get(SettingKeys.M_ExposureTime).fireStringValueChanged(shutter);
     }
 
     @Override
     public void onShutterSpeedValuesChanged(String[] shuttervals) {
-        ManualShutter.fireStringValuesChanged(shuttervals);
+        get(SettingKeys.M_ExposureTime).fireStringValuesChanged(shuttervals);
     }
 
     @Override
     public void onFlashChanged(String flash)
     {
         Log.d(TAG, "Fire ONFLashCHanged");
-        FlashMode.fireStringValueChanged(flash);
+        get(SettingKeys.FlashMode).fireStringValueChanged(flash);
     }
 
     @Override
@@ -309,37 +344,35 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
     @Override
     public void onWhiteBalanceValueChanged(String wb)
     {
-        WhiteBalanceMode.fireStringValueChanged(wb);
-        if (WhiteBalanceMode.GetStringValue().equals("Color Temperature") && CCT != null)
-            CCT.fireIsSupportedChanged(true);
+        get(SettingKeys.WhiteBalanceMode).fireStringValueChanged(wb);
+        if (get(SettingKeys.WhiteBalanceMode).GetStringValue().equals("Color Temperature") && get(SettingKeys.M_Whitebalance) != null)
+            get(SettingKeys.M_Whitebalance).setViewState(AbstractParameter.ViewState.Visible);
         else
-            CCT.fireIsSupportedChanged(false);
+            get(SettingKeys.M_Whitebalance).setViewState(AbstractParameter.ViewState.Hidden);
     }
 
     @Override
     public void onImagesRecieved(final String[] url)
     {
-        FreeDPool.Execute(new Runnable() {
-            @Override
-            public void run() {
-                for (String s : url)
+        FreeDPool.Execute(() -> {
+            for (String s : url)
+            {
+                if (cameraUiWrapper.getModuleHandler().getCurrentModule() instanceof PictureModuleSony)
                 {
-                    if (cameraUiWrapper.getModuleHandler().getCurrentModule() instanceof PictureModuleSony)
-                    {
-                        PictureModuleSony pictureModuleSony = (PictureModuleSony) cameraUiWrapper.getModuleHandler().getCurrentModule();
-                        try {
-                            pictureModuleSony.onPictureTaken(new URL(s));
-                        }catch (MalformedURLException ex) {
-                            Log.WriteEx(ex);
-                        }
+                    PictureModuleSony pictureModuleSony = (PictureModuleSony) cameraUiWrapper.getModuleHandler().getCurrentModule();
+                    try {
+                        pictureModuleSony.onPictureTaken(new URL(s));
+                    }catch (MalformedURLException ex) {
+                        Log.WriteEx(ex);
                     }
                 }
-            }});
+            }
+        });
     }
 
     @Override
     public void onFnumberChanged(String fnumber) {
-        ManualFNumber.fireStringValueChanged(fnumber);
+        get(SettingKeys.M_Fnumber).fireStringValueChanged(fnumber);
     }
 
     @Override
@@ -355,88 +388,88 @@ public class ParameterHandler extends AbstractParameterHandler implements Simple
     @Override
     public void onExposureModesChanged(String[] expomode)
     {
-        ExposureMode.fireStringValuesChanged(expomode);
+        get(SettingKeys.ExposureMode).fireStringValuesChanged(expomode);
     }
 
     @Override
     public void onImageFormatChanged(String imagesize) {
-        if (imagesize!= null && !imagesize.equals(""))
-            PictureFormat.fireStringValueChanged(imagesize);
+        if (imagesize!= null && !TextUtils.isEmpty(imagesize))
+            get(SettingKeys.PictureFormat).fireStringValueChanged(imagesize);
     }
 
     @Override
     public void onImageFormatsChanged(String[] imagesize) {
-        PictureFormat.fireStringValuesChanged(imagesize);
+        get(SettingKeys.PictureFormat).fireStringValuesChanged(imagesize);
     }
 
     @Override
     public void onImageSizeChanged(String imagesize) {
-        if (imagesize!= null && !imagesize.equals(""))
-            PictureSize.fireStringValueChanged(imagesize);
+        if (imagesize!= null && !TextUtils.isEmpty(imagesize))
+            get(SettingKeys.PictureSize).fireStringValueChanged(imagesize);
     }
 
     @Override
     public void onContshotModeChanged(String imagesize) {
-        if (imagesize!= null && !imagesize.equals(""))
-            ContShootMode.fireStringValueChanged(imagesize);
+        if (imagesize!= null && !TextUtils.isEmpty(imagesize))
+            get(SettingKeys.ContShootMode).fireStringValueChanged(imagesize);
     }
 
     @Override
     public void onContshotModesChanged(String[] imagesize) {
-        ContShootMode.fireStringValuesChanged(imagesize);
+        get(SettingKeys.ContShootMode).fireStringValuesChanged(imagesize);
     }
 
     @Override
     public void onFocusModeChanged(String imagesize) {
-        if (imagesize!= null && !imagesize.equals(""))
-            FocusMode.fireStringValueChanged(imagesize);
+        if (imagesize!= null && !TextUtils.isEmpty(imagesize))
+            get(SettingKeys.FocusMode).fireStringValueChanged(imagesize);
     }
 
     @Override
     public void onFocusModesChanged(String[] imagesize) {
-        FocusMode.fireStringValuesChanged(imagesize);
+        get(SettingKeys.FocusMode).fireStringValuesChanged(imagesize);
     }
 
     @Override
     public void onPostviewModeChanged(String imagesize) {
-        if (imagesize!= null && !imagesize.equals(""))
-            PostViewSize.fireStringValueChanged(imagesize);
+        if (imagesize!= null && !TextUtils.isEmpty(imagesize))
+            get(SettingKeys.PostViewSize).fireStringValueChanged(imagesize);
     }
 
     @Override
     public void onPostviewModesChanged(String[] imagesize) {
-        PostViewSize.fireStringValuesChanged(imagesize);
+        get(SettingKeys.PostViewSize).fireStringValuesChanged(imagesize);
     }
 
     @Override
     public void onTrackingFocusModeChanged(String imagesize) {
-        ObjectTracking.fireStringValueChanged(imagesize);
+        get(SettingKeys.ObjectTracking).fireStringValueChanged(imagesize);
     }
 
     @Override
     public void onTrackingFocusModesChanged(String[] imagesize) {
-        ObjectTracking.fireStringValuesChanged(imagesize);
+        get(SettingKeys.ObjectTracking).fireStringValuesChanged(imagesize);
     }
 
     @Override
     public void onZoomSettingValueCHanged(String value) {
-        ZoomSetting.fireStringValueChanged(value);
+        get(SettingKeys.ZoomSetting).fireStringValueChanged(value);
     }
 
     @Override
     public void onZoomSettingsValuesCHanged(String[] values) {
-        ZoomSetting.fireStringValuesChanged(values);
+        get(SettingKeys.ZoomSetting).fireStringValuesChanged(values);
     }
 
     @Override
     public void onExposureModeChanged(String expomode) {
-        if (expomode == null && expomode.equals(""))
+        if ((expomode == null && TextUtils.isEmpty(expomode)) || get(SettingKeys.ExposureMode).GetStringValue() == null)
             return;
-        if (!ExposureMode.GetStringValue().equals(expomode))
-            ExposureMode.fireStringValueChanged(expomode);
+        if (!get(SettingKeys.ExposureMode).GetStringValue().equals(expomode))
+            get(SettingKeys.ExposureMode).fireStringValueChanged(expomode);
         if (expomode.equals("Intelligent Auto")|| expomode.equals("Superior Auto"))
-            WhiteBalanceMode.fireIsSupportedChanged(false);
+            get(SettingKeys.WhiteBalanceMode).setViewState(AbstractParameter.ViewState.Hidden);
         else
-            WhiteBalanceMode.fireIsSupportedChanged(true);
+            get(SettingKeys.WhiteBalanceMode).setViewState(AbstractParameter.ViewState.Visible);
     }
 }

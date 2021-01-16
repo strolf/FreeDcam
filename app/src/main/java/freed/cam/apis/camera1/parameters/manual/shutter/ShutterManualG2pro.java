@@ -24,10 +24,12 @@ import android.os.Handler;
 
 import com.troop.freedcam.R;
 
-import freed.cam.apis.basecamera.CameraHolderInterface;
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
 import freed.cam.apis.camera1.parameters.manual.BaseManualParameter;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -35,33 +37,20 @@ import freed.utils.Log;
  */
 public class ShutterManualG2pro extends BaseManualParameter
 {
-    private CameraHolderInterface baseCameraHolder;
     private final String TAG = ShutterManualG2pro.class.getSimpleName();
-
-    private final String G2Pro ="1/2,1,2,4,8,16,32,64";
 
     /**
      * @param parameters
      * @param cameraUiWrapper
      */
-    public ShutterManualG2pro(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, "", "", "", cameraUiWrapper,1);
-        stringvalues = cameraUiWrapper.getAppSettingsManager().manualExposureTime.getValues();
-        isSupported = true;
+    public ShutterManualG2pro(Parameters parameters, CameraWrapperInterface cameraUiWrapper, SettingKeys.Key settingMode) {
+        super(parameters,cameraUiWrapper,settingMode);
+        stringvalues = SettingsManager.get(SettingKeys.M_ExposureTime).getValues();
+        setViewState(ViewState.Visible);
     }
 
     @Override
-    public boolean IsVisible() {
-        return IsSupported();
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return true;
-    }
-
-    @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
         currentInt = valueToSet;
         String shutterstring = stringvalues[currentInt];
@@ -70,7 +59,7 @@ public class ShutterManualG2pro extends BaseManualParameter
             Double a = Double.parseDouble(split[0]) / Double.parseDouble(split[1]);
             shutterstring = "" + a*1000000;
         }
-        if(!stringvalues[currentInt].equals(cameraUiWrapper.getResString(R.string.auto_)))
+        if(!stringvalues[currentInt].equals(FreedApplication.getStringFromRessources(R.string.auto_)))
         {
             try {
                 shutterstring = setExposureTimeToParameter(shutterstring);
@@ -94,12 +83,10 @@ public class ShutterManualG2pro extends BaseManualParameter
         try {
 
             Handler handler = new Handler();
-            Runnable r = new Runnable() {
-                public void run() {
+            Runnable r = () -> {
 
-                    parameters.set("exposure-time", shutterstring);
-                    ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
-                }
+                parameters.set("exposure-time", shutterstring);
+                ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
             };
             handler.post(r);
         }

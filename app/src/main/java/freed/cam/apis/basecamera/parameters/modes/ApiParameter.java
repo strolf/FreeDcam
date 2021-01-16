@@ -20,21 +20,22 @@
 package freed.cam.apis.basecamera.parameters.modes;
 
 import android.os.Build.VERSION;
+import android.text.TextUtils;
 
-import freed.ActivityInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.utils.AppSettingsManager;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.SwichCameraFragmentEvent;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 21.07.2015.
  */
 public class ApiParameter extends AbstractParameter
 {
-    private final ActivityInterface fragment_activityInterface;
-    private final boolean DEBUG = false;
 
-    public ApiParameter(ActivityInterface fragment_activityInterface) {
-        this.fragment_activityInterface = fragment_activityInterface;
+    public ApiParameter() {
+        super(null);
+        fireStringValueChanged(GetStringValue());
     }
 
     @Override
@@ -42,30 +43,31 @@ public class ApiParameter extends AbstractParameter
     {
         if (VERSION.SDK_INT >= 21)
         {
-            if (fragment_activityInterface.getAppSettings().hasCamera2Features())
-                return new String[]{AppSettingsManager.API_SONY, AppSettingsManager.API_2, AppSettingsManager.API_1};
+            if (SettingsManager.getInstance().hasCamera2Features())
+                return new String[]{SettingsManager.API_SONY, SettingsManager.API_2, SettingsManager.API_1};
             else
-                return new String[]{AppSettingsManager.API_SONY, AppSettingsManager.API_1};
+                return new String[]{SettingsManager.API_SONY, SettingsManager.API_1};
         } else
-            return new String[]{AppSettingsManager.API_SONY, AppSettingsManager.API_1};
+            return new String[]{SettingsManager.API_SONY, SettingsManager.API_1};
     }
 
     @Override
     public String GetStringValue() {
-        String ret = fragment_activityInterface.getAppSettings().getCamApi();
-        if (ret.equals(""))
-            ret = AppSettingsManager.API_1;
+        String ret = SettingsManager.getInstance().getCamApi();
+        if (TextUtils.isEmpty(ret))
+            ret = SettingsManager.API_1;
         return ret;
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCamera) {
-        fragment_activityInterface.getAppSettings().setCamApi(valueToSet);
-        fragment_activityInterface.SwitchCameraAPI(valueToSet);
+        SettingsManager.getInstance().setCamApi(valueToSet);
+        EventBusHelper.post(new SwichCameraFragmentEvent());
+        fireStringValueChanged(valueToSet);
     }
 
     @Override
-    public boolean IsSupported() {
-        return true;
+    public ViewState getViewState() {
+        return ViewState.Visible;
     }
 }

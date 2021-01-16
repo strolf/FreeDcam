@@ -7,10 +7,11 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.util.AttributeSet;
-import android.widget.ImageView;
+
+import androidx.appcompat.widget.AppCompatImageView;
 
 //Exposure Selector
-public class ExposureSelector extends ImageView
+public class ExposureSelector extends AppCompatImageView
 {
 	private int shutterangle=180; //i wish
 	private int shutterstart = 90;

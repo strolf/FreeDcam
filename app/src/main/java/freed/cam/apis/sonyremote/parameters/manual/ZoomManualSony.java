@@ -27,6 +27,7 @@ import java.util.Set;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.sonyremote.parameters.ParameterHandler;
 import freed.cam.apis.sonyremote.sonystuff.JsonUtils;
+import freed.settings.SettingKeys;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
 
@@ -42,27 +43,24 @@ public class ZoomManualSony extends BaseManualParameterSony
     private boolean fromUser;
 
     public ZoomManualSony(CameraWrapperInterface cameraUiWrapper) {
-        super("actZoom", "", "actZoom", cameraUiWrapper);
+        super("actZoom", "", "actZoom", cameraUiWrapper, SettingKeys.M_Zoom);
     }
 
     @Override
     public void SonyApiChanged(Set<String> mAvailableCameraApiSet)
     {
         this.mAvailableCameraApiSet = mAvailableCameraApiSet;
-        //if (isSupported != JsonUtils.isCameraApiAvailable("actZoom", mAvailableCameraApiSet))
-        //{
-        isSupported = JsonUtils.isCameraApiAvailable("actZoom", mAvailableCameraApiSet);
-        fireIsSupportedChanged(isSupported);
-        fireIsReadOnlyChanged(isSupported);
+        if (JsonUtils.isCameraApiAvailable("actZoom", mAvailableCameraApiSet))
+            setViewState(ViewState.Visible);
         stringvalues = createStringArray(0,100,1);
-        //}
-
-
     }
 
     @Override
-    public boolean IsSupported() {
-        return ((ParameterHandler) cameraUiWrapper.getParameterHandler()).mAvailableCameraApiSet != null && JsonUtils.isCameraApiAvailable("actZoom", ((ParameterHandler) cameraUiWrapper.getParameterHandler()).mAvailableCameraApiSet);
+    public ViewState getViewState() {
+        if (((ParameterHandler) cameraUiWrapper.getParameterHandler()).mAvailableCameraApiSet != null && JsonUtils.isCameraApiAvailable("actZoom", ((ParameterHandler) cameraUiWrapper.getParameterHandler()).mAvailableCameraApiSet))
+            return ViewState.Visible;
+        else
+            return ViewState.Hidden;
     }
 
     public int GetValue()
@@ -96,7 +94,7 @@ public class ZoomManualSony extends BaseManualParameterSony
     }
 
     @Override
-    public void SetValue(int valueToSet)
+    public void SetValue(int valueToSet, boolean setToCamera)
     {
         zoomToSet = valueToSet;
         if (!isZooming)
@@ -110,15 +108,12 @@ public class ZoomManualSony extends BaseManualParameterSony
                 direction = "in";
             //currentzoomPos = valueToSet;
             final String finaldirection = direction;
-            FreeDPool.Execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        JSONObject object = mRemoteApi.actZoom(finaldirection, movement);
-                        isZooming = false;
-                    } catch (IOException ex) {
-                        Log.WriteEx(ex);
-                    }
+            FreeDPool.Execute(() -> {
+                try {
+                    JSONObject object = mRemoteApi.actZoom(finaldirection, movement);
+                    isZooming = false;
+                } catch (IOException ex) {
+                    Log.WriteEx(ex);
                 }
             });
         }
@@ -132,7 +127,7 @@ public class ZoomManualSony extends BaseManualParameterSony
         if (zoomToSet != currentInt && fromUser)
         {
             if (!checkIfIntIsInRange(zoomToSet, currentInt))
-                SetValue(zoomToSet);
+                SetValue(zoomToSet, true);
             else {
                 zoomToSet = currentInt;
                 fromUser = false;

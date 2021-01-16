@@ -25,9 +25,11 @@ import com.troop.freedcam.R;
 
 import java.text.DecimalFormat;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
 import freed.cam.apis.camera1.parameters.manual.BaseManualParameter;
+import freed.settings.SettingKeys;
 import freed.utils.Log;
 
 /**
@@ -38,29 +40,18 @@ public class ShutterManualParameterHTC extends BaseManualParameter
     private final String TAG = ShutterManualParameterHTC.class.getSimpleName();
     private final DecimalFormat trimfloat = new DecimalFormat("#.######");
 
-    public ShutterManualParameterHTC(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, "", "", "", cameraUiWrapper,1);
-        isSupported = true;
-        stringvalues = cameraUiWrapper.getAppSettingsManager().manualExposureTime.getValues();
-    }
-
-    @Override
-    public boolean IsSupported() {
-        return super.IsSupported();
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return IsSupported();
+    public ShutterManualParameterHTC(Parameters parameters, CameraWrapperInterface cameraUiWrapper,SettingKeys.Key settingMode) {
+        super(parameters,cameraUiWrapper,settingMode);
+        setViewState(ViewState.Visible);
     }
 
 
     @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
         currentInt = valueToSet;
         String shutterstring = stringvalues[currentInt];
-        if(!shutterstring.equals(cameraUiWrapper.getResString(R.string.auto_)))
+        if(!shutterstring.equals(FreedApplication.getStringFromRessources(R.string.auto_)))
         {
             if (shutterstring.contains("/")) {
                 String[] split = shutterstring.split("/");

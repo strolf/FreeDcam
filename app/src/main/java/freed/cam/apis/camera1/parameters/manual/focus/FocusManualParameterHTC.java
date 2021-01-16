@@ -24,6 +24,7 @@ import android.hardware.Camera.Parameters;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
 import freed.cam.apis.camera1.parameters.manual.BaseManualParameter;
+import freed.settings.SettingKeys;
 
 /**
  * Created by troop on 17.08.2014.
@@ -32,17 +33,13 @@ public class FocusManualParameterHTC extends BaseManualParameter
 {
     private final String TAG =FocusManualParameterHTC.class.getSimpleName();
 
-    public FocusManualParameterHTC(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, "", "", "", cameraUiWrapper,1);
-        isSupported = cameraUiWrapper.getAppSettingsManager().manualFocus.isSupported();
-        key_value = cameraUiWrapper.getAppSettingsManager().manualFocus.getKEY();
-        isVisible = isSupported;
-        stringvalues = cameraUiWrapper.getAppSettingsManager().manualFocus.getValues();
+    public FocusManualParameterHTC(Parameters parameters, CameraWrapperInterface cameraUiWrapper,SettingKeys.Key settingMode) {
+        super(parameters,cameraUiWrapper,settingMode);
     }
 
 
     @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
         parameters.set(key_value, valueToSet+"");
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);

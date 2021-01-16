@@ -1,12 +1,13 @@
 package freed.cam.apis.basecamera.parameters;
 
-import android.os.Handler;
-import android.os.Looper;
-
 import java.util.ArrayList;
-import java.util.List;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.ValueChangedEvent;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
+import freed.settings.mode.SettingMode;
 
 /**
  * Created by troop on 18.06.2017.
@@ -14,10 +15,15 @@ import freed.cam.apis.basecamera.CameraWrapperInterface;
 
 public abstract class AbstractParameter implements ParameterInterface {
 
-    /**
-     * Listners that attached to that parameter
-     */
-    private final List<ParameterEvents> listners;
+    public enum ViewState{
+        Visible,
+        Hidden,
+        Disabled,
+        Enabled
+    }
+
+    private ViewState viewState = ViewState.Hidden;
+
     /**
      * the parameterhandler
      */
@@ -35,170 +41,78 @@ public abstract class AbstractParameter implements ParameterInterface {
      * so on negative values  -1 = stringarray[stringarray/2 + -1] must get used
      */
     protected int currentInt;
-    /**
-     * holds the state if the parameter is supported
-     */
-    protected boolean isSupported;
-    /**
-     * holds the state if the parameter should be visible to ui
-     */
-    protected boolean isVisible = true;
 
-    protected boolean isNotReadOnly;
+    protected SettingKeys.Key key;
+    protected SettingMode settingMode;
 
-    private Handler mainHandler;
-
-    public AbstractParameter()
+    public AbstractParameter(SettingKeys.Key  key)
     {
-        mainHandler = new Handler(Looper.getMainLooper());
-        listners = new ArrayList<>();
+        this.key = key;
+        if (key == null || SettingsManager.get(key) == null) {
+            setViewState(ViewState.Hidden);
+            return;
+        }
+        if (SettingsManager.get(key) instanceof  SettingMode) {
+            this.settingMode = (SettingMode) SettingsManager.get(key);
+            stringvalues = settingMode.getValues();
+            if (settingMode.isSupported())
+                setViewState(ViewState.Visible);
+            currentString = settingMode.get();
+        }
     }
 
-
-    public AbstractParameter(CameraWrapperInterface cameraUiWrapper)
+    @Override
+    public SettingKeys.Key getKey()
     {
-        this();
+        return key;
+    }
+
+    @Override
+    public void startListning() {
+        EventBusHelper.register(this);
+    }
+
+    @Override
+    public void stopListning() {
+        EventBusHelper.unregister(this);
+    }
+
+    @Override
+    public void setViewState(ViewState viewState) {
+        this.viewState = viewState;
+        fireViewStateChanged(viewState);
+    }
+
+    public AbstractParameter(CameraWrapperInterface cameraUiWrapper, SettingKeys.Key  settingMode)
+    {
+        this(settingMode);
         this.cameraUiWrapper = cameraUiWrapper;
-
-    }
-
-    /**
-     * Add and listner that get informed when somthings happen
-     * @param eventListner that gets informed
-     */
-    public void addEventListner(ParameterEvents eventListner)
-    {
-        if (!listners.contains(eventListner))
-            listners.add(eventListner);
-    }
-    /**
-     * Remove the listner
-     * @param eventListner that gets informed
-     */
-    public void removeEventListner(ParameterEvents eventListner)
-    {
-        if (listners.contains(eventListner))
-            listners.remove(eventListner);
     }
 
     public void fireIntValueChanged(int current)
     {
         currentInt = current;
-        for (int i = 0; i< listners.size(); i ++)
-        {
-            if (listners.get(i) == null)
-            {
-                listners.remove(i);
-                i--;
-
-            }
-            else {
-                final ParameterEvents lis = listners.get(i);
-                final int cur = current;
-                mainHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        lis.onIntValueChanged(cur);
-                    }
-                });
-            }
-
-        }
+        EventBusHelper.post(new ValueChangedEvent<>(key,current, Integer.class));
     }
 
     public void fireStringValueChanged(String value)
     {
         currentString = value;
-        for (int i = 0; i< listners.size(); i ++)
-        {
-            if (listners.get(i) == null)
-            {
-                listners.remove(i);
-                i--;
-
-            }
-            else {
-                final ParameterEvents lis = listners.get(i);
-                final String cur = value;
-                mainHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        lis.onStringValueChanged(cur);
-                    }
-                });
-            }
-        }
+        EventBusHelper.post(new ValueChangedEvent<>(key,value, String.class));
     }
 
-    public void fireIsSupportedChanged(boolean value)
+    @Override
+    public void fireViewStateChanged(ViewState value)
     {
-        isSupported = value;
-        for (int i = 0; i< listners.size(); i ++)
-        {
-            if (listners.get(i) == null)
-            {
-                listners.remove(i);
-                i--;
-
-            }
-            else {
-                final ParameterEvents lis = listners.get(i);
-                final boolean cur = value;
-                mainHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        lis.onIsSupportedChanged(cur);
-                    }
-                });
-            }
-        }
-    }
-    public void fireIsReadOnlyChanged(boolean value)
-    {
-        isNotReadOnly = value;
-        for (int i = 0; i< listners.size(); i ++)
-        {
-            if (listners.get(i) == null)
-            {
-                listners.remove(i);
-                i--;
-
-            }
-            else {
-            final ParameterEvents lis = listners.get(i);
-            final boolean cur = value;
-            mainHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    lis.onIsSetSupportedChanged(cur);
-                }
-            });
-            }
-        }
+        viewState = value;
+        EventBusHelper.post(new ValueChangedEvent<>(key,value, ViewState.class));
     }
 
+    @Override
     public void fireStringValuesChanged(String[] value)
     {
         stringvalues = value;
-        for (int i = 0; i< listners.size(); i ++)
-        {
-            if (listners.get(i) == null)
-            {
-                listners.remove(i);
-                i--;
-
-            }
-            else {
-                final ParameterEvents lis = listners.get(i);
-                final String[] cur = value;
-                mainHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        lis.onValuesChanged(cur);
-                    }
-                });
-            }
-        }
+        EventBusHelper.post(new ValueChangedEvent<>(key,value, String[].class));
     }
 
     /**
@@ -206,24 +120,8 @@ public abstract class AbstractParameter implements ParameterInterface {
      * @return true if the parameter is supported
      */
     @Override
-    public boolean IsSupported() {
-        return isSupported;
-    }
-
-    /**
-     * if true the parameter can get set and is readable
-     * if false the parameter is read only
-     * @return  parameter can set
-     */
-    public boolean IsSetSupported() {return isNotReadOnly;}
-
-    /**
-     *
-     * @return the visiblity state for the ui item
-     */
-    @Override
-    public boolean IsVisible() {
-        return isVisible;
+    public ViewState getViewState() {
+        return viewState;
     }
 
     /**
@@ -242,12 +140,6 @@ public abstract class AbstractParameter implements ParameterInterface {
     @Override
     public String GetStringValue()
     {
-        /*if (stringvalues == null || stringvalues.length == 0)
-            return null;
-        if (currentInt > stringvalues.length)
-            return stringvalues[currentInt - stringvalues.length/2];
-        else
-            return stringvalues[currentInt];*/
         if (currentString == null)
             return "";
         return currentString;
@@ -260,17 +152,58 @@ public abstract class AbstractParameter implements ParameterInterface {
     @Override
     public String[] getStringValues() { return stringvalues;}
 
+
+
+
+    /**
+     * set value to camera async
+       override that when you need dont need to run in it background
+     * @param valueToSet the int value to set
+     * @param setToCamera
+     */
     @Override
-    public void SetValue(int valueToSet)
+    public void SetValue(int valueToSet, boolean setToCamera)
+    {
+        setValue(valueToSet,setToCamera);
+    }
+
+    /**
+     * runs async gets called from SetValue
+     * override that when you want to set stuff in background
+     * @param valueToSet
+     * @param setToCamera
+     */
+    protected void setValue(int valueToSet, boolean setToCamera)
     {
         fireIntValueChanged(valueToSet);
         currentInt = valueToSet;
+        if (settingMode != null)
+            settingMode.set(String.valueOf(valueToSet));
     }
 
+    /**
+     * set value to camera async
+     override that when you need dont need to run in it background
+     * @param valueToSet to the camera
+     * @param setToCamera not needed anymore?
+     */
     @Override
     public void SetValue(String valueToSet, boolean setToCamera) {
+        setValue(valueToSet,setToCamera);
+    }
+
+    /**
+     * runs async gets called from SetValue
+     * override that when you want to set stuff in background
+     * @param valueToSet
+     * @param setToCamera
+     */
+    protected void setValue(String valueToSet, boolean setToCamera)
+    {
         currentString = valueToSet;
         fireStringValueChanged(currentString);
+        if (settingMode != null)
+            settingMode.set(valueToSet);
     }
 
     /**

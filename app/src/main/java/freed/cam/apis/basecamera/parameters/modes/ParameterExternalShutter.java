@@ -20,41 +20,39 @@
 package freed.cam.apis.basecamera.parameters.modes;
 
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 21.07.2015.
  */
 public class ParameterExternalShutter extends AbstractParameter
 {
-    private static final String VoLP = "Vol+";
-    private static final String VoLM = "Vol-";
-    private static final String Hook = "Hook";
-    private final AppSettingsManager appSettingsManager;
+    private final String[] values = {"Vol+", "Vol-", "Hook"};
 
-    private final String[] values = {VoLP, VoLM, Hook};
-
-    public ParameterExternalShutter(AppSettingsManager appSettingsManager)
+    public ParameterExternalShutter()
     {
-        this.appSettingsManager = appSettingsManager;
+        super(SettingKeys.EXTERNAL_SHUTTER);
+        if (SettingsManager.getGlobal(SettingKeys.EXTERNAL_SHUTTER).get() == null)
+            SettingsManager.getGlobal(SettingKeys.EXTERNAL_SHUTTER).set(values[2]);
     }
 
-    public boolean IsSupported()
-    {
-        return true;
+    @Override
+    public ViewState getViewState() {
+        return ViewState.Visible;
     }
 
     public void SetValue(String valueToSet, boolean setToCamera)
     {
-        appSettingsManager.setApiString(AppSettingsManager.SETTING_EXTERNALSHUTTER, valueToSet);
+        SettingsManager.getGlobal(SettingKeys.EXTERNAL_SHUTTER).set(valueToSet);
     }
 
     public String GetStringValue()
     {
-        if (appSettingsManager.getApiString(AppSettingsManager.SETTING_EXTERNALSHUTTER).equals(""))
+        if (SettingsManager.getGlobal(SettingKeys.EXTERNAL_SHUTTER).get() == null || SettingsManager.getGlobal(SettingKeys.EXTERNAL_SHUTTER).get().isEmpty())
             return "Hook";
         else
-            return appSettingsManager.getApiString(AppSettingsManager.SETTING_EXTERNALSHUTTER);
+            return SettingsManager.getGlobal(SettingKeys.EXTERNAL_SHUTTER).get();
     }
 
     public String[] getStringValues() {

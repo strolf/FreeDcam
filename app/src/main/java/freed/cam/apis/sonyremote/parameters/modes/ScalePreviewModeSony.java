@@ -19,29 +19,32 @@
 
 package freed.cam.apis.sonyremote.parameters.modes;
 
-import android.os.Build;
-
 import com.troop.freedcam.R;
 
 import java.util.Set;
 
-import freed.cam.apis.sonyremote.sonystuff.SimpleStreamSurfaceView;
+import freed.FreedApplication;
+import freed.cam.apis.sonyremote.PreviewStreamDrawer;
+import freed.renderscript.RenderScriptManager;
+import freed.settings.SettingKeys;
 
 /**
  * Created by troop on 16.08.2016.
  */
 public class ScalePreviewModeSony extends BaseModeParameterSony {
 
-    private final SimpleStreamSurfaceView simpleStreamSurfaceView;
+    private final PreviewStreamDrawer simpleStreamSurfaceView;
 
-    public ScalePreviewModeSony(SimpleStreamSurfaceView simpleStreamSurfaceView) {
-        super(null, null, null, null);
+    public ScalePreviewModeSony(PreviewStreamDrawer simpleStreamSurfaceView) {
+        super(null, null, null, null,null, SettingKeys.SCALE_PREVIEW);
         this.simpleStreamSurfaceView = simpleStreamSurfaceView;
+        if (RenderScriptManager.isSupported())
+            setViewState(ViewState.Visible);
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCamera) {
-        if (simpleStreamSurfaceView.getResources().getString(R.string.on_).equals(valueToSet))
+        if (FreedApplication.getStringFromRessources(R.string.on_).equals(valueToSet))
             simpleStreamSurfaceView.ScalePreview(true);
         else
             simpleStreamSurfaceView.ScalePreview(false);
@@ -50,19 +53,14 @@ public class ScalePreviewModeSony extends BaseModeParameterSony {
     @Override
     public String GetStringValue() {
         if (simpleStreamSurfaceView.isScalePreview())
-            return simpleStreamSurfaceView.getResources().getString(R.string.on_);
+            return FreedApplication.getStringFromRessources(R.string.on_);
         else
-            return simpleStreamSurfaceView.getResources().getString(R.string.off_);
+            return FreedApplication.getStringFromRessources(R.string.off_);
     }
 
     @Override
     public String[] getStringValues() {
-        return new String[]{simpleStreamSurfaceView.getResources().getString(R.string.on_), simpleStreamSurfaceView.getResources().getString(R.string.off_)};
-    }
-
-    @Override
-    public boolean IsSupported() {
-        return Build.VERSION.SDK_INT >= 18;
+        return new String[]{FreedApplication.getStringFromRessources(R.string.on_), FreedApplication.getStringFromRessources(R.string.off_)};
     }
 
     @Override

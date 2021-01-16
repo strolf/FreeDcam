@@ -25,8 +25,10 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 
+import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.sonyremote.sonystuff.JsonUtils;
 import freed.cam.apis.sonyremote.sonystuff.SimpleRemoteApi;
+import freed.settings.SettingKeys;
 import freed.utils.Log;
 
 /**
@@ -35,8 +37,8 @@ import freed.utils.Log;
 public class PictureFormatSony extends BaseModeParameterSony
 {
     final String TAG = PictureFormatSony.class.getSimpleName();
-    public PictureFormatSony(SimpleRemoteApi mRemoteApi) {
-        super("getStillQuality", "setStillQuality", "getAvailableStillQuality", mRemoteApi);
+    public PictureFormatSony(SimpleRemoteApi mRemoteApi, CameraWrapperInterface wrapperInterface) {
+        super("getStillQuality", "setStillQuality", "getAvailableStillQuality", mRemoteApi,wrapperInterface, SettingKeys.PictureFormat);
     }
 
     protected String processGetString() {

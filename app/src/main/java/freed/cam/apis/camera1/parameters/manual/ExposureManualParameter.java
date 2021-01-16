@@ -25,6 +25,7 @@ import java.util.ArrayList;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
 import freed.utils.Log;
 
 /**
@@ -34,18 +35,11 @@ public class ExposureManualParameter extends BaseManualParameter
 {
 
     private final String TAG = ExposureManualParameter.class.getSimpleName();
-    public ExposureManualParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper, float step) {
-        super(parameters,cameraUiWrapper,step);
+    public ExposureManualParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper, SettingKeys.Key settingMode) {
+        super(parameters,cameraUiWrapper,settingMode);
         stringvalues = createStringArray(parameters.getMinExposureCompensation(),parameters.getMaxExposureCompensation(),parameters.getExposureCompensationStep());
-        isSupported = true;
-        isVisible = true;
+        setViewState(ViewState.Visible);
         String TAG = ExposureManualParameter.class.getSimpleName();
-        Log.d(TAG, "Is Supported:" + isSupported);
-    }
-
-    @Override
-    public boolean IsSupported() {
-        return true;
     }
 
     @Override
@@ -61,7 +55,7 @@ public class ExposureManualParameter extends BaseManualParameter
     }
 
     @Override
-    public void SetValue(int valueToset)
+    public void setValue(int valueToset, boolean setToCamera)
     {
         if(stringvalues == null || stringvalues.length == 0)
             return;
@@ -76,7 +70,7 @@ public class ExposureManualParameter extends BaseManualParameter
         {
             Log.WriteEx(ex);
         }
-        fireIntValueChanged(currentInt);
+        //fireIntValueChanged(currentInt);
         fireStringValueChanged(stringvalues[valueToset]);
     }
 

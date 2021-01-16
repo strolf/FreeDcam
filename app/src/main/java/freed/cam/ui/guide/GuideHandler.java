@@ -1,19 +1,28 @@
 package freed.cam.ui.guide;
 
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
+import androidx.fragment.app.Fragment;
+
 import com.troop.freedcam.R.drawable;
 import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
 
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.ParameterEvents;
-import freed.utils.AppSettingsManager;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.ValueChangedEvent;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -23,15 +32,21 @@ public class GuideHandler extends Fragment implements ParameterEvents {
     private ImageView img;
     private CameraWrapperInterface cameraUiWrapper;
     private float quckRationMath;
-    private AppSettingsManager appSettingsManager;
     private final String TAG = GuideHandler.class.getSimpleName();
 
 
-    public static GuideHandler GetInstance(AppSettingsManager appSettingsManager)
+    public static GuideHandler getInstance()
     {
-        GuideHandler g = new GuideHandler();
-        g.appSettingsManager = appSettingsManager;
-        return g;
+        return new GuideHandler();
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onGuidChanged(ValueChangedEvent<String> guideChanged)
+    {
+        if (guideChanged.key == SettingKeys.GuideList)
+        {
+            onStringValueChanged(guideChanged.newValue);
+        }
     }
 
     @Override
@@ -39,29 +54,31 @@ public class GuideHandler extends Fragment implements ParameterEvents {
     {
         super.onCreateView(inflater, container,null);
         View view = inflater.inflate(layout.cameraui_guides_fragment, container, false);
-        img = (ImageView) view.findViewById(id.imageViewGyide);
+        img = view.findViewById(id.imageViewGyide);
         return view;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        if (cameraUiWrapper !=  null && cameraUiWrapper.getParameterHandler() != null && cameraUiWrapper.getParameterHandler().PreviewSize != null)
-            previewSizeChanged.onStringValueChanged(cameraUiWrapper.getParameterHandler().PreviewSize.GetStringValue());
+        EventBusHelper.register(this);
+        if (cameraUiWrapper !=  null && cameraUiWrapper.getParameterHandler() != null && cameraUiWrapper.getParameterHandler().get(SettingKeys.PreviewSize) != null)
+            previewSizeChanged.onStringValueChanged(cameraUiWrapper.getParameterHandler().get(SettingKeys.PreviewSize).GetStringValue());
     }
     @Override
     public void onPause(){
         super.onPause();
+        EventBusHelper.unregister(this);
 
     }
 
     public void setCameraUiWrapper(CameraWrapperInterface cameraUiWrapper)
     {
         this.cameraUiWrapper = cameraUiWrapper;
-        cameraUiWrapper.getParameterHandler().GuideList.addEventListner(this);
+        //cameraUiWrapper.getParameterHandler().get(SettingKeys.GuideList).addEventListner(this);
         Log.d(TAG, "setCameraUiWrapper SetViewG()");
         if (img != null)
-            SetViewG(cameraUiWrapper.getAppSettingsManager().guide.get());
+            SetViewG(SettingsManager.getGlobal(SettingKeys.GuideList).get());
     }
 
     private void SetViewG(final String str)
@@ -183,14 +200,8 @@ public class GuideHandler extends Fragment implements ParameterEvents {
         }
     }
 
-
     @Override
-    public void onIsSupportedChanged(boolean value) {
-
-    }
-
-    @Override
-    public void onIsSetSupportedChanged(boolean value) {
+    public void onViewStateChanged(AbstractParameter.ViewState value) {
 
     }
 
@@ -211,13 +222,9 @@ public class GuideHandler extends Fragment implements ParameterEvents {
     }
 
     private final ParameterEvents previewSizeChanged = new ParameterEvents() {
-        @Override
-        public void onIsSupportedChanged(boolean value) {
-
-        }
 
         @Override
-        public void onIsSetSupportedChanged(boolean value) {
+        public void onViewStateChanged(AbstractParameter.ViewState value) {
 
         }
 
@@ -234,8 +241,12 @@ public class GuideHandler extends Fragment implements ParameterEvents {
         @Override
         public void onStringValueChanged(String val) {
             Log.d(TAG, "I_ModeParameterEvent SetViewG()");
-            String img = appSettingsManager.guide.get();
-            if (val != null && !val.equals("")&& img != null && !img.equals("") && !img.equals("None")) {
+            String img = SettingsManager.getGlobal(SettingKeys.GuideList).get();
+            if (val != null
+                    && !TextUtils.isEmpty(val)
+                    && img != null
+                    && !TextUtils.isEmpty(img)
+                    && !img.equals("None")) {
                 String[] size = val.split("x");
                 quckRationMath = Float.valueOf(size[0]) / Float.valueOf(size[1]);
                 SetViewG(img);

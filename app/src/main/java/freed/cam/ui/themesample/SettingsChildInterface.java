@@ -21,26 +21,15 @@ package freed.cam.ui.themesample;
 
 import android.view.View;
 
-import freed.ActivityInterface;
 import freed.cam.apis.basecamera.modules.ModuleChangedEvent;
 import freed.cam.apis.basecamera.parameters.ParameterEvents;
 import freed.cam.apis.basecamera.parameters.ParameterInterface;
-import freed.utils.AppSettingsManager;
 
 /**
  * Created by troop on 16.06.2016.
  */
 public interface SettingsChildInterface extends ModuleChangedEvent, ParameterEvents,View.OnClickListener
 {
-    /**
-     * Set stuff that is needed to work
-     * @param fragment_activityInterface
-     * @param key_settingvalue from AppSettingsManager.KEY
-     */
-    void SetStuff(ActivityInterface fragment_activityInterface, String key_settingvalue);
-
-    void SetStuff(AppSettingsManager.SettingMode settingMode);
-
     /**
      * Set the parameter to work with
      * @param parameter

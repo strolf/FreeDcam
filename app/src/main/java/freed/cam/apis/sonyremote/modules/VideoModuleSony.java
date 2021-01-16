@@ -23,13 +23,13 @@ import android.os.Handler;
 
 import com.troop.freedcam.R;
 
-import java.io.File;
-
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.modules.ModuleAbstract;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract.CaptureStates;
 import freed.cam.apis.sonyremote.CameraHolderSony;
 import freed.cam.apis.sonyremote.parameters.ParameterHandler;
+import freed.file.holder.BaseHolder;
 
 /**
  * Created by troop on 08.06.2015.
@@ -41,7 +41,7 @@ public class VideoModuleSony extends ModuleAbstract implements I_CameraStatusCha
 
     public VideoModuleSony(CameraWrapperInterface cameraUiWrapper, Handler mBackgroundHandler, Handler mainHandler) {
         super(cameraUiWrapper,mBackgroundHandler,mainHandler);
-        name = cameraUiWrapper.getResString(R.string.module_video);
+        name = FreedApplication.getStringFromRessources(R.string.module_video);
         cameraHolder = (CameraHolderSony)cameraUiWrapper.getCameraHolder();
 
     }
@@ -94,7 +94,7 @@ public class VideoModuleSony extends ModuleAbstract implements I_CameraStatusCha
     }
 
     @Override
-    public void internalFireOnWorkDone(File file) {
+    public void internalFireOnWorkDone(BaseHolder file) {
 
     }
 }

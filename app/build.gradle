@@ -1,3 +1,9 @@
+tasks.whenTaskAdded { task ->
+    if (task.name.equals("lint")) {
+        task.enabled = false
+    }
+}
+
 apply plugin: 'com.android.application'
 
 android {
@@ -8,23 +14,31 @@ android {
             storeFile file('../key/freedcamkey.jks')
             storePassword 'freedcam'
         }
+        debug {
+            storeFile file('..\\key\\freedcamkey.jks')
+            storePassword 'freedcam'
+            keyAlias = 'freedcamkey'
+            keyPassword 'freedcam'
+        }
     }
-    compileSdkVersion 25
-    buildToolsVersion '25.0.2'
+
+    compileSdkVersion 30
+    buildToolsVersion '30.0.2'
     defaultConfig {
         minSdkVersion 14
-        targetSdkVersion 25
-        versionCode 125
-        versionName '4.1'
+        targetSdkVersion 30
+        versionCode 222
+        versionName '4.3.22'
         applicationId "troop.com.freedcam"
-        renderscriptTargetApi 18
+        renderscriptTargetApi 24
+        setProperty("archivesBaseName", "FreeDcam_" + name + "_" + versionName)
         externalNativeBuild {
             ndkBuild {
                 arguments "-j4"
-                abiFilters 'armeabi', 'armeabi-v7a'
+                abiFilters 'armeabi-v7a', 'arm64-v8a'
             }
         }
-        versionNameSuffix 'alpha23'
+        signingConfig signingConfigs.config
     }
     lintOptions { checkReleaseBuilds false }
     buildTypes {
@@ -32,6 +46,7 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.config
+            ndk.debugSymbolLevel 'full'
         }
         debug {
             jniDebuggable true
@@ -45,13 +60,30 @@ android {
     }
     productFlavors {
     }
+
+    compileOptions {
+        targetCompatibility JavaVersion.VERSION_1_8
+		sourceCompatibility JavaVersion.VERSION_1_8
+    }
+    buildFeatures {
+        dataBinding true
+    }
 }
 
+
+
 dependencies {
-    compile 'com.android.support:appcompat-v7:26.0.0-alpha1'
-    provided files('libs/com.lge.frameworks.jar')
-    provided files('libs/libTypeReference.jar')
-    testCompile 'junit:junit:4.12'
-    testCompile 'org.mockito:mockito-core:1.10.19'
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    implementation 'org.greenrobot:eventbus:3.1.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
+    implementation 'androidx.lifecycle:lifecycle-extensions:2.2.0'
 }
+
+android.applicationVariants.all { variant ->
+    variant.outputs.all {
+        outputFileName = "FreeDcam_${variant.buildType.name}_${variant.versionName}.apk"
+    }
+}
+
 

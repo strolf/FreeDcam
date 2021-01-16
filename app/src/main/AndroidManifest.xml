@@ -3,8 +3,8 @@
     package="com.troop.freedcam"
     android:installLocation="auto">
     <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="com.sonyericsson.permission.CAMERA_EXTENDED" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -12,14 +12,27 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
+    <!-- used on huawei p9/10 and for new devices? -->
     <uses-permission android:name="android.permission.HW_CAMCFG_SERVICE" />
-
     <uses-permission android:name="com.huawei.camera.permission.PRIVATE" />
     <uses-permission android:name="huawei.android.permission.HW_SIGNATURE_OR_SYSTEM" />
+    <!-- used on huawei p9/10 and for new devices? -->
+
+    <!-- used by sony xperia zX devices? -->
+    <uses-permission android:name="com.sonyericsson.permission.CAMERA_EXTENDED" />
+    <!-- used by sony xperia zX devices? -->
+
+    <!-- used on oneplus5 -->
+    <uses-permission
+        android:name="com.oneplus.camera.CAMERA_SERVICE" />
+    <uses-permission
+        android:name="com.oneplus.camera.PICTURE_PROCESS_SERVICE" />
+    <!-- used on oneplus5 -->
+
+
     <!-- only for system apps
     <uses-permission android:name="android.permission.WRITE_MEDIA_STORAGE" /> -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
 
 
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -28,14 +41,17 @@
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false"/>
 
 
-    <application android:name="freed.SettingsApplication"
+    <application
+        android:name="freed.FreedApplication"
         android:allowBackup="true"
         android:icon="@drawable/launcher_freedcam"
         android:label="FreeDCam"
         android:supportsRtl="false"
         android:theme="@style/FullscreenTheme"
         android:hardwareAccelerated="true"
-        android:largeHeap="true">
+        android:largeHeap="true"
+        android:extractNativeLibs="true"
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name="freed.cam.ActivityFreeDcamMain"
@@ -99,7 +115,8 @@
 
         <activity
             android:name="freed.viewer.dngconvert.DngConvertingActivity"
-            android:label="GridView">
+            android:label="GridView"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
@@ -107,7 +124,8 @@
 
         <activity
             android:name="freed.viewer.stack.StackActivity"
-            android:label="GridView">
+            android:label="GridView"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
@@ -115,19 +133,32 @@
 
         <activity
             android:name="freed.viewer.stack.DngStackActivity"
-            android:label="GridView">
+            android:label="GridView"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
 
         <activity
-            android:name="freed.cam.ui.videoprofileeditor.VideoProfileEditorActivity"
-            android:label="GridView">
+            android:name="freed.cam.ui.videoprofileeditor.views.VideoProfileEditorActivity"
+            android:label="GridView"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
+
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 </manifest>

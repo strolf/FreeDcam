@@ -26,6 +26,8 @@ import java.lang.reflect.Method;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.CameraHolder;
+import freed.cam.events.CameraStateEvents;
+import freed.settings.Frameworks;
 import freed.utils.Log;
 
 /**
@@ -41,6 +43,7 @@ public class CameraHolderLegacy extends CameraHolder
     @Override
     public boolean OpenCamera(int camera)
     {
+        boolean isRdy = false;
         Log.d(TAG, "open camera legacy");
         try {
             mCamera = openWrapper(camera);
@@ -54,12 +57,11 @@ public class CameraHolderLegacy extends CameraHolder
         } catch (RuntimeException ex)
         {
             Log.WriteEx(ex);
-            cameraUiWrapper.onCameraError("Fail to connect to camera service");
-            isRdy = false;
+            CameraStateEvents.fireCameraErrorEvent("Fail to connect to legacy camera service");
             mCamera = Camera.open(camera);
+            isRdy =true;
         }
-
-        cameraUiWrapper.onCameraOpen("");
+        CameraStateEvents.fireCameraOpenEvent();
         return isRdy;
     }
 

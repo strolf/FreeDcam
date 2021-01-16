@@ -24,15 +24,17 @@ import android.os.Handler;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.basecamera.parameters.manual.AbstractManualShutter;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
 import freed.utils.Log;
 
 /**
  * Created by troop on 25.11.2015.
  */
-public class ShutterManualZTE extends AbstractManualShutter
+public class ShutterManualZTE extends AbstractParameter
 {
     private final String TAG = ShutterManualZTE.class.getSimpleName();
     private Parameters parameters;
@@ -41,24 +43,13 @@ public class ShutterManualZTE extends AbstractManualShutter
      * @param cameraUiWrapper
      */
     public ShutterManualZTE(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(cameraUiWrapper);
+        super(cameraUiWrapper,SettingKeys.M_ExposureTime);
         this.parameters = parameters;
-        stringvalues = cameraUiWrapper.getAppSettingsManager().manualExposureTime.getValues();
-        isSupported = true;
+        setViewState(ViewState.Visible);
     }
 
     @Override
-    public boolean IsVisible() {
-        return IsSupported();
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return  true;
-    }
-
-    @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
         currentInt = valueToSet;
         String shutterstring = stringvalues[currentInt];
@@ -67,7 +58,7 @@ public class ShutterManualZTE extends AbstractManualShutter
             Double a = Double.parseDouble(split[0]) / Double.parseDouble(split[1]);
             shutterstring = "" + a;
         }
-        if(!stringvalues[currentInt].equals(cameraUiWrapper.getResString(R.string.auto_)))
+        if(!stringvalues[currentInt].equals(FreedApplication.getStringFromRessources(R.string.auto_)))
         {
             try {
                 shutterstring = setExposureTimeToParameter(shutterstring);
@@ -89,12 +80,10 @@ public class ShutterManualZTE extends AbstractManualShutter
         try
         {
             Handler handler = new Handler();
-            Runnable r = new Runnable() {
-                public void run() {
-                    ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetZTE_AE();
-                    cameraUiWrapper.stopPreview();
-                    cameraUiWrapper.startPreview();
-                }
+            Runnable r = () -> {
+                ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetZTE_AE();
+                cameraUiWrapper.stopPreviewAsync();
+                cameraUiWrapper.startPreviewAsync();
             };
             //handler.postDelayed(r, 1);
             handler.post(r);
@@ -111,17 +100,15 @@ public class ShutterManualZTE extends AbstractManualShutter
         try {
 
             Handler handler = new Handler();
-            Runnable r = new Runnable() {
-                public void run() {
+            Runnable r = () -> {
 
-                    parameters.set("slow_shutter", shutterstring);
-                    parameters.set("slow_shutter_addition", "1");
-                    ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
+                parameters.set("slow_shutter", shutterstring);
+                parameters.set("slow_shutter_addition", "1");
+                ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
 
-                    if(Double.parseDouble(shutterstring) < 1.0 ){
-                        cameraUiWrapper.stopPreview();
-                        cameraUiWrapper.startPreview();
-                    }
+                if(Double.parseDouble(shutterstring) < 1.0 ){
+                    cameraUiWrapper.stopPreviewAsync();
+                    cameraUiWrapper.startPreviewAsync();
                 }
             };
             handler.post(r);

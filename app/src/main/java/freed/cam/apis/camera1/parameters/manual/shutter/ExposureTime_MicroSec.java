@@ -4,9 +4,12 @@ import android.hardware.Camera;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -14,52 +17,43 @@ import freed.utils.Log;
  */
 
 public class ExposureTime_MicroSec extends AbstractParameter {
+
     private final String TAG = ExposureTime_MicroSec.class.getSimpleName();
     private Camera.Parameters parameters;
+
     public ExposureTime_MicroSec(CameraWrapperInterface cameraUiWrapper, Camera.Parameters parameters) {
-        super(cameraUiWrapper);
-        stringvalues = cameraUiWrapper.getAppSettingsManager().manualExposureTime.getValues();
-        isSupported = true;
-        isVisible = true;
+        super(cameraUiWrapper,SettingKeys.M_ExposureTime);
+        stringvalues = SettingsManager.get(SettingKeys.M_ExposureTime).getValues();
+       setViewState(ViewState.Visible);
         this.parameters = parameters;
     }
 
     @Override
-    public boolean IsVisible() {
-        return isSupported;
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return true;
-    }
-
-    @Override
-    public void SetValue(int valueToset)
+    public void setValue(int valueToset, boolean setToCamera)
     {
+        super.setValue(valueToset,setToCamera);
         currentInt = valueToset;
         String shutterstring = stringvalues[currentInt];
-        if(!shutterstring.equals(cameraUiWrapper.getResString(R.string.auto_)))
+        if(!shutterstring.equals(FreedApplication.getStringFromRessources(R.string.auto_)))
         {
-            if (stringvalues[currentInt].contains("/")) {
-                String[] split = stringvalues[currentInt].split("/");
+            if (shutterstring.contains("/")) {
+                String[] split = shutterstring.split("/");
                 Double a = Double.parseDouble(split[0]) / Double.parseDouble(split[1]);
                 shutterstring = "" + a;
             }
-            shutterstring = Double.parseDouble(shutterstring) * 1000 +"";
-            Log.d(TAG, "set exposure time to " + shutterstring);
-            parameters.set(cameraUiWrapper.getAppSettingsManager().manualExposureTime.getKEY(), shutterstring);
+            Log.d(TAG, "StringUtils.FormatShutterStringToDouble:" + shutterstring);
+
+            float b =  Float.parseFloat(shutterstring);
+            float c = b * 1000000;
+            shutterstring = Math.round(c)+"";
+            parameters.set(SettingsManager.get(SettingKeys.M_ExposureTime).getCamera1ParameterKEY(), shutterstring);
+
         }
         else
         {
-            parameters.set(cameraUiWrapper.getAppSettingsManager().manualExposureTime.getKEY(), "0");
+            parameters.set(SettingsManager.get(SettingKeys.M_ExposureTime).getCamera1ParameterKEY(), "0");
             Log.d(TAG, "set exposure time to auto");
         }
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
-    }
-
-    @Override
-    public void SetValue(String valueToSet, boolean setToCamera) {
-
     }
 }

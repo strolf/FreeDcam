@@ -20,7 +20,6 @@
 package freed.cam.ui.themesample.cameraui;
 
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -28,11 +27,13 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.LinearLayout;
 
+import androidx.fragment.app.Fragment;
+
 import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
 
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.ParameterEvents;
-import freed.cam.apis.basecamera.parameters.ParameterInterface;
 import freed.cam.ui.themesample.SettingsChildAbstract;
 import freed.cam.ui.themesample.cameraui.childs.SimpleValueChild;
 
@@ -56,7 +57,7 @@ public class HorizontalValuesFragment extends Fragment implements SettingsChildA
     {
         super.onCreateView(inflater,container,null);
         View view = inflater.inflate(layout.cameraui_horizontal_values_fragment, container, false);
-        valuesHolder = (LinearLayout) view.findViewById(id.horizontal_values_holder);
+        valuesHolder = view.findViewById(id.horizontal_values_holder);
         setValueToView();
         return view;
     }
@@ -98,11 +99,6 @@ public class HorizontalValuesFragment extends Fragment implements SettingsChildA
     }
 
 
-    public void ListenToParameter(ParameterInterface parameter)
-    {
-        parameter.addEventListner(this);
-    }
-
     /*
     this gets attached to the Simplevalue childes and returns the value from the clicked SimpleValueChild
      */
@@ -113,13 +109,9 @@ public class HorizontalValuesFragment extends Fragment implements SettingsChildA
             rdytoclose.onCloseClicked(value);
     }
 
-    @Override
-    public void onIsSupportedChanged(boolean value) {
-
-    }
 
     @Override
-    public void onIsSetSupportedChanged(boolean value) {
+    public void onViewStateChanged(AbstractParameter.ViewState value) {
 
     }
 

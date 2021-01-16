@@ -23,56 +23,65 @@ import android.hardware.Camera.Parameters;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.apis.basecamera.parameters.ParameterEvents;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
 
 /**
  * Created by troop on 26.09.2014.
  */
-public class NightModeZTE extends BaseModeParameter
+public class NightModeZTE extends BaseModeParameter implements ParameterEvents
 {
     final String TAG = NightModeZTE.class.getSimpleName();
     private final boolean visible = true;
     private final String state = "";
     private final String curmodule = "";
     public NightModeZTE(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, cameraUiWrapper);
-        isSupported = true;
-        isVisible =true;
-        cameraUiWrapper.getModuleHandler().addListner(this);
-        cameraUiWrapper.getParameterHandler().PictureFormat.addEventListner(this);
-    }
-
-    @Override
-    public boolean IsSupported()
-    {
-        return isSupported;
+        super(parameters, cameraUiWrapper,SettingKeys.NightMode);
+        setViewState(ViewState.Visible);
+        //cameraUiWrapper.getParameterHandler().get(SettingKeys.PictureFormat).addEventListner(this);
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCam)
     {
-        parameters.set(cameraUiWrapper.getResString(R.string.night_key), valueToSet);
+        parameters.set(FreedApplication.getStringFromRessources(R.string.night_key), valueToSet);
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
-        onStringValueChanged(valueToSet);
+        fireStringValueChanged(valueToSet);
 
     }
 
     @Override
     public String GetStringValue() {
-            return parameters.get(cameraUiWrapper.getResString(R.string.night_key));
+            return parameters.get(FreedApplication.getStringFromRessources(R.string.night_key));
     }
 
     @Override
     public String[] getStringValues() {
         return new String[] {
-                cameraUiWrapper.getResString(R.string.off_),
-                cameraUiWrapper.getResString(R.string.on_),
-                cameraUiWrapper.getResString(R.string.night_mode_tripod)};
+                FreedApplication.getStringFromRessources(R.string.off_),
+                FreedApplication.getStringFromRessources(R.string.on_),
+                FreedApplication.getStringFromRessources(R.string.night_mode_tripod)};
+    }
+
+    @Override
+    public void onViewStateChanged(ViewState value) {
+
+    }
+
+    @Override
+    public void onIntValueChanged(int current) {
+
+    }
+
+    @Override
+    public void onValuesChanged(String[] values) {
+
     }
 
     @Override
     public void onStringValueChanged(String value) {
-        String format = value;
     }
 }

@@ -24,31 +24,37 @@ import android.hardware.Camera.Parameters;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
 
 /**
  * Created by troop on 01.09.2014.
  */
 public class ZoomManualParameter extends  BaseManualParameter
 {
-    public ZoomManualParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper)
+    public ZoomManualParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper, SettingKeys.Key key)
     {
-        super(parameters,cameraUiWrapper,1);
-        key_value = cameraUiWrapper.getResString(R.string.zoom);
-        isSupported = false;
-        if (parameters.get(cameraUiWrapper.getResString(R.string.zoom_supported))!= null)
-            if (parameters.get(cameraUiWrapper.getResString(R.string.zoom_supported)).equals(cameraUiWrapper.getResString(R.string.true_))) {
-                isSupported = true;
-                isVisible = true;
-                Set_Default_Value(GetValue());
-                stringvalues = createStringArray(0,Integer.parseInt(parameters.get(cameraUiWrapper.getResString(R.string.zoom_max))),1);
-                currentInt = Integer.parseInt(parameters.get(key_value));
+        super(parameters,cameraUiWrapper,key);
+        key_value = FreedApplication.getStringFromRessources(R.string.zoom);
+        if (parameters.get(FreedApplication.getStringFromRessources(R.string.zoom_supported))!= null)
+            if (parameters.get(FreedApplication.getStringFromRessources(R.string.zoom_supported)).equals(FreedApplication.getStringFromRessources(R.string.true_))) {
+                setViewState(ViewState.Visible);
+                stringvalues = createStringArray(0,Integer.parseInt(parameters.get(FreedApplication.getStringFromRessources(R.string.zoom_max))),1);
+                try {
+                    currentInt = Integer.parseInt(parameters.get(key_value));
+                }
+                catch (NullPointerException ex)
+                {
+                    currentInt = 0;
+                }
+
             }
     }
 
     @Override
-    public void SetValue(int valueToset) {
+    public void setValue(int valueToset, boolean setToCamera) {
         currentInt = valueToset;
         parameters.set(key_value, valueToset);
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);

@@ -23,8 +23,11 @@ import android.hardware.Camera.Parameters;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by GeorgeKiarie on 9/24/2015.
@@ -35,13 +38,13 @@ public class VirtualLensFilter extends  BaseModeParameter {
     private final String[] asU;
     public VirtualLensFilter(Parameters parameters, CameraWrapperInterface cameraUiWrapper)
     {
-        super(parameters, cameraUiWrapper);
+        super(parameters, cameraUiWrapper, SettingKeys.LensFilter);
 
-        if (cameraUiWrapper.getAppSettingsManager().isZteAe())
-            isSupported = true;
+        if (SettingsManager.getInstance().isZteAe())
+            setViewState(ViewState.Visible);
         this.cameraUiWrapper = cameraUiWrapper;
-        stringvalues = cameraUiWrapper.getContext().getResources().getStringArray(R.array.virtual_lensfilter_colors);
-        asU = cameraUiWrapper.getContext().getResources().getStringArray(R.array.virtual_lensfilter_asu);
+        stringvalues = FreedApplication.getStringArrayFromRessource(R.array.virtual_lensfilter_colors);
+        asU = FreedApplication.getStringArrayFromRessource(R.array.virtual_lensfilter_asu);
     }
 
     @Override

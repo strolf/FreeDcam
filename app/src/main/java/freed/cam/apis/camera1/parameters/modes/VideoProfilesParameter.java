@@ -19,6 +19,8 @@
 
 package freed.cam.apis.camera1.parameters.modes;
 
+import android.text.TextUtils;
+
 import com.troop.freedcam.R;
 
 import java.util.ArrayList;
@@ -26,8 +28,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
+import freed.utils.Log;
 import freed.utils.VideoMediaProfile;
 
 /**
@@ -38,46 +44,55 @@ public class VideoProfilesParameter extends AbstractParameter
     private final String TAG = VideoProfilesParameter.class.getSimpleName();
     protected HashMap<String, VideoMediaProfile> supportedProfiles;
     protected String profile;
-    protected CameraWrapperInterface cameraUiWrapper;
     protected boolean isSupported;
 
 
     public VideoProfilesParameter(CameraWrapperInterface cameraUiWrapper) {
-        super();
-        this.cameraUiWrapper = cameraUiWrapper;
+        super(cameraUiWrapper,SettingKeys.VideoProfiles);
         isSupported =true;
-        supportedProfiles = cameraUiWrapper.getAppSettingsManager().getMediaProfiles();
-        profile = cameraUiWrapper.getAppSettingsManager().videoProfile.get();
-        if (profile == null)
+        try {
+            supportedProfiles = SettingsManager.getInstance().getMediaProfiles();
+        }
+        catch (NullPointerException ex)
+        {
+            Log.e(TAG, "Failed to load MediaProfiles");
+        }
+
+        profile = SettingsManager.get(SettingKeys.VideoProfiles).get();
+        if (profile == null && supportedProfiles.size() > 0)
         {
             List<String> keys = new ArrayList<>(supportedProfiles.keySet());
             profile = keys.get(0);
-            cameraUiWrapper.getAppSettingsManager().videoProfile.set(profile);
+            SettingsManager.get(SettingKeys.VideoProfiles).set(profile);
         }
+        else if (supportedProfiles == null || supportedProfiles.size() == 0)
+            fireViewStateChanged(ViewState.Hidden);
+
     }
 
     @Override
-    public void SetValue(String valueToSet, boolean setToCam)
-    {
-        super.SetValue(valueToSet,setToCam);
+    protected void setValue(String valueToSet, boolean setToCamera) {
+        super.setValue(valueToSet, setToCamera);
         profile = valueToSet;
         if (cameraUiWrapper.getModuleHandler().getCurrentModule() != null
-                && cameraUiWrapper.getModuleHandler().getCurrentModuleName().equals(cameraUiWrapper.getResString(R.string.module_video)))
+                && cameraUiWrapper.getModuleHandler().getCurrentModuleName().equals(FreedApplication.getStringFromRessources(R.string.module_video)))
             cameraUiWrapper.getModuleHandler().getCurrentModule().InitModule();
-    }
-
-    @Override
-    public boolean IsSupported() {
-        return isSupported;
     }
 
     @Override
     public String GetStringValue()
     {
-        if (profile == null && supportedProfiles != null)
+        if ((profile == null || TextUtils.isEmpty(profile)) && supportedProfiles != null)
         {
             List<String> keys = new ArrayList<>(supportedProfiles.keySet());
-            profile = keys.get(0);
+            try {
+                profile = keys.get(0);
+            } catch (IndexOutOfBoundsException e) {
+                e.printStackTrace();
+                profile = "null";
+                isSupported = false;
+                setViewState(ViewState.Hidden);
+            }
         }
         return profile;
     }
@@ -92,7 +107,9 @@ public class VideoProfilesParameter extends AbstractParameter
 
     public VideoMediaProfile GetCameraProfile(String profile)
     {
-        if (profile == null || profile.equals(""))
+        if (supportedProfiles == null)
+            supportedProfiles = SettingsManager.getInstance().getMediaProfiles();
+        if (profile == null || TextUtils.isEmpty(profile))
         {
             String[] t = supportedProfiles.keySet().toArray(new String[supportedProfiles.keySet().size()]);
             return supportedProfiles.get(t[0]);

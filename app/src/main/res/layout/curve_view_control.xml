@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/button_save"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@color/button_notclicked"
+            android:text="Save"
+            android:textColor="#000000" />
+
+        <Button
+            android:id="@+id/button_load"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@color/button_notclicked"
+            android:text="Load"
+            android:textColor="#000000" />
+
+        <Button
+            android:id="@+id/button_add_point"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@color/button_notclicked"
+            android:text="+"
+            android:textColor="#000000" />
+
+        <Button
+            android:id="@+id/button_remove_point"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@color/button_notclicked"
+            android:text="-"
+            android:textColor="#000000" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/button_rgb"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@android:color/background_light"
+            android:text="RGB"
+            android:textColor="#000000" />
+
+        <Button
+            android:id="@+id/button_red"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@android:color/holo_red_dark"
+            android:text="R"
+            android:textColor="#000000" />
+
+        <Button
+            android:id="@+id/button_green"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@android:color/holo_green_dark"
+            android:text="G"
+            android:textColor="#000000" />
+
+        <Button
+            android:id="@+id/button_blue"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/curveViewButtonHeight"
+            android:layout_weight="1"
+            android:background="@android:color/holo_blue_dark"
+            android:text="B"
+            android:textColor="#000000" />
+    </LinearLayout>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <view
+            android:id="@+id/curveViewHolder"
+            class="freed.views.CurveView"
+            layout_width="match_parent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@color/uiSettingsBackground" />
+
+        <LinearLayout
+            android:id="@+id/save_panel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="@color/button_notclicked">
+
+            <TextView
+                android:id="@+id/textView3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enter Curve Name" />
+
+            <EditText
+                android:id="@+id/editText_curvename"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ems="10"
+                android:inputType="textPersonName"
+                android:text="Name" />
+
+            <Button
+                android:id="@+id/button_savecurve"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save Curve" />
+        </LinearLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <LinearLayout
+                android:id="@+id/load_panel"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/button_notclicked"
+                android:isScrollContainer="true"
+                android:orientation="vertical" />
+        </ScrollView>
+    </RelativeLayout>
+
+
+</LinearLayout>

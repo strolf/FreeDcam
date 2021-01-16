@@ -20,48 +20,52 @@
 package freed.cam.apis.camera1.modules;
 
 import android.media.MediaRecorder;
-import android.media.MediaRecorder.OnErrorListener;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.Handler;
 import android.os.ParcelFileDescriptor;
-import android.support.v4.provider.DocumentFile;
 
 import com.troop.freedcam.R;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.basecamera.modules.I_RecorderStateChanged;
 import freed.cam.apis.basecamera.modules.ModuleAbstract;
-import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract;
 import freed.cam.apis.basecamera.modules.ModuleHandlerAbstract.CaptureStates;
+import freed.cam.apis.basecamera.record.VideoRecorder;
 import freed.cam.apis.camera1.CameraHolder;
-import freed.utils.AppSettingsManager;
+import freed.cam.ui.themesample.handler.UserMessageHandler;
+import freed.file.holder.FileHolder;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
+import freed.utils.OrientationUtil;
+import freed.utils.PermissionManager;
 
 /**
  * Created by troop on 06.01.2016.
  */
 public abstract class AbstractVideoModule extends ModuleAbstract implements MediaRecorder.OnInfoListener
 {
-    protected MediaRecorder recorder;
-    protected String mediaSavePath;
+    VideoRecorder recorder;
+    private String mediaSavePath;
     private final String TAG = AbstractVideoModule.class.getSimpleName();
     private ParcelFileDescriptor fileDescriptor;
 
-    public AbstractVideoModule(CameraWrapperInterface cameraUiWrapper, Handler mBackgroundHandler, Handler mainHandler) {
+    AbstractVideoModule(CameraWrapperInterface cameraUiWrapper, Handler mBackgroundHandler, Handler mainHandler) {
         super(cameraUiWrapper,mBackgroundHandler,mainHandler);
-        name = cameraUiWrapper.getResString(R.string.module_video);
+        name = FreedApplication.getStringFromRessources(R.string.module_video);
     }
 
     @Override
     public void InitModule() {
         super.InitModule();
         changeCaptureState(CaptureStates.video_recording_stop);
+        initRecorder();
     }
+
 
     @Override
     public String ShortName() {
@@ -87,93 +91,102 @@ public abstract class AbstractVideoModule extends ModuleAbstract implements Medi
 
     private void startStopRecording()
     {
-        if (!isWorking)
+        if (!isWorking && !isLowStorage) {
             startRecording();
-        else
+        }
+        else if( isWorking ) {
             stopRecording();
+        }
+        if( isLowStorage ) {
+            UserMessageHandler.sendMSG("Can't Record due to low storage space. Free some and try again.", false);
+        }
     }
 
     @Override
     public boolean IsWorking() {
         return isWorking;
     }
+
+    @Override
+    public void IsLowStorage(Boolean x) {
+        isLowStorage = x;
+    }
 //ModuleInterface END
 
 
-    protected void startRecording()
+    private void startRecording()
     {
-        if (cameraUiWrapper.getActivityInterface().getPermissionHandler().hasRecordAudioPermission(null)) {
-            if (cameraUiWrapper.getAppSettingsManager().getApiString(AppSettingsManager.SETTING_LOCATION).equals(cameraUiWrapper.getResString(R.string.on_)))
-                cameraUiWrapper.getCameraHolder().SetLocation(cameraUiWrapper.getActivityInterface().getLocationHandler().getCurrentLocation());
+        if (cameraUiWrapper.getActivityInterface().getPermissionManager().isPermissionGranted(PermissionManager.Permissions.RecordAudio)) {
+            if (SettingsManager.getGlobal(SettingKeys.LOCATION_MODE).get().equals(FreedApplication.getStringFromRessources(R.string.on_)))
+                cameraUiWrapper.getCameraHolder().SetLocation(cameraUiWrapper.getActivityInterface().getLocationManager().getCurrentLocation());
             prepareRecorder();
         }
+        else
+            cameraUiWrapper.getActivityInterface().getPermissionManager().requestPermission(PermissionManager.Permissions.RecordAudio);
 
     }
 
-    protected void prepareRecorder()
+    private void prepareRecorder()
     {
         try
         {
             Log.d(TAG, "InitMediaRecorder");
             isWorking = true;
             ((CameraHolder) cameraUiWrapper.getCameraHolder()).GetCamera().unlock();
-            recorder = initRecorder();
-            recorder.setMaxFileSize(3037822976L); //~2.8 gigabyte
-            recorder.setMaxDuration(7200000); //2hours
-            recorder.setOnErrorListener(new OnErrorListener() {
-                @Override
-                public void onError(MediaRecorder mr, int what, int extra) {
-                    Log.e("MediaRecorder", "ErrorCode: " + what + " Extra: " + extra);
-                    cameraUiWrapper.getModuleHandler().onRecorderstateChanged(I_RecorderStateChanged.STATUS_RECORDING_STOP);
-                    changeCaptureState(ModuleHandlerAbstract.CaptureStates.video_recording_stop);
-                    ((CameraHolder) cameraUiWrapper.getCameraHolder()).GetCamera().lock();
-                }
+            mediaSavePath = cameraUiWrapper.getActivityInterface().getFileListController().getNewFilePath(SettingsManager.getInstance().GetWriteExternal(), ".mp4");
+            File tosave = new File(mediaSavePath);
+            recorder.setRecordingFile(tosave);
+            recorder.setErrorListener((mr, what, extra) -> {
+                Log.e("MediaRecorder", "ErrorCode: " + what + " Extra: " + extra);
+                changeCaptureState(CaptureStates.video_recording_stop);
+                ((CameraHolder) cameraUiWrapper.getCameraHolder()).GetCamera().lock();
             });
 
-            mediaSavePath = cameraUiWrapper.getActivityInterface().getStorageHandler().getNewFilePath(appSettingsManager.GetWriteExternal(), ".mp4");
-            File tosave = new File(mediaSavePath);
+
             if (!tosave.getParentFile().exists())
                 tosave.getParentFile().mkdirs();
 
-            setRecorderOutPutFile(mediaSavePath);
-            recorder.setOnInfoListener(this);
+            recorder.setInfoListener(this);
 
-            if (appSettingsManager.orientationhack.getBoolean())
-                recorder.setOrientationHint(180);
+            if (!SettingsManager.get(SettingKeys.orientationHack).get().equals("0"))
+                recorder.setOrientation(Integer.parseInt(SettingsManager.get(SettingKeys.orientationHack).get()));
             else
-                recorder.setOrientationHint(0);
+                recorder.setOrientation(0);
 
-            recorder.setPreviewDisplay(((CameraHolder) cameraUiWrapper.getCameraHolder()).getSurfaceHolder());
+            recorder.setPreviewSurface(((CameraHolder) cameraUiWrapper.getCameraHolder()).getSurfaceHolder());
 
-            try {
+
                 Log.d(TAG,"Preparing Recorder");
-                recorder.prepare();
-                Log.d(TAG, "Recorder Prepared, Starting Recording");
-                recorder.start();
-                Log.d(TAG, "Recording started");
-                sendStartToUi();
+                if(recorder.prepare()) {
+                    Log.d(TAG, "Recorder Prepared, Starting Recording");
+                    recorder.start();
 
-            } catch (Exception ex)
-            {
-                Log.e(TAG,"Recording failed");
-                cameraUiWrapper.getCameraHolder().SendUIMessage("Start Recording failed");
-                Log.WriteEx(ex);
-                recorder.reset();
-                isWorking = false;
-                ((CameraHolder) cameraUiWrapper.getCameraHolder()).GetCamera().lock();
-                recorder.release();
-                isWorking = false;
-                sendStopToUi();
-            }
+                //fix exposer flick after video recording on first set parameters to camera.
+                // first call will under expose then second call will fix exposure.
+                cameraUiWrapper.getParameterHandler().SetParameters();
+                cameraUiWrapper.getParameterHandler().SetParameters();
+
+                    Log.d(TAG, "Recording started");
+                    sendStartToUi();
+                }
+                else
+                {
+                    Log.e(TAG,"Recording failed");
+                    UserMessageHandler.sendMSG("Start Recording failed ",false);
+                    isWorking = false;
+                    ((CameraHolder) cameraUiWrapper.getCameraHolder()).GetCamera().lock();
+                    recorder.reset();
+                    isWorking = false;
+                    sendStopToUi();
+                }
         }
         catch (NullPointerException ex)
         {
             Log.WriteEx(ex);
-            cameraUiWrapper.getCameraHolder().SendUIMessage("Start Recording failed");
-            recorder.reset();
+            UserMessageHandler.sendMSG("Start Recording failed",false);
             isWorking = false;
             ((CameraHolder) cameraUiWrapper.getCameraHolder()).GetCamera().lock();
-            recorder.release();
+            recorder.reset();
             isWorking = false;
             sendStopToUi();
 
@@ -183,18 +196,16 @@ public abstract class AbstractVideoModule extends ModuleAbstract implements Medi
     private void sendStopToUi()
     {
         changeCaptureState(CaptureStates.video_recording_stop);
-        cameraUiWrapper.getModuleHandler().onRecorderstateChanged(I_RecorderStateChanged.STATUS_RECORDING_STOP);
     }
 
     private void sendStartToUi()
     {
-        cameraUiWrapper.getModuleHandler().onRecorderstateChanged(I_RecorderStateChanged.STATUS_RECORDING_START);
         changeCaptureState(CaptureStates.video_recording_start);
     }
 
-    protected abstract MediaRecorder initRecorder();
+    protected abstract void initRecorder();
 
-    protected void stopRecording()
+    void stopRecording()
     {
         try {
             recorder.stop();
@@ -203,15 +214,14 @@ public abstract class AbstractVideoModule extends ModuleAbstract implements Medi
         catch (Exception ex)
         {
             Log.e(TAG, "Stop Recording failed, was called bevor start");
-            cameraUiWrapper.getCameraHolder().SendUIMessage("Stop Recording failed, was called bevor start");
+            UserMessageHandler.sendMSG("Stop Recording failed, was called bevor start",false);
             Log.e(TAG,ex.getMessage());
             isWorking = false;
         }
         finally
         {
-            recorder.reset();
             ((CameraHolder) cameraUiWrapper.getCameraHolder()).GetCamera().lock();
-            recorder.release();
+            recorder.reset();
             isWorking = false;
             try {
                 if (VERSION.SDK_INT > VERSION_CODES.KITKAT && fileDescriptor != null) {
@@ -222,35 +232,9 @@ public abstract class AbstractVideoModule extends ModuleAbstract implements Medi
                 Log.WriteEx(e1);
             }
             File file = new File(mediaSavePath);
-            cameraUiWrapper.getActivityInterface().ScanFile(file);
-            fireOnWorkFinish(file);
+            fireOnWorkFinish(new FileHolder(file,SettingsManager.getInstance().GetWriteExternal()));
             sendStopToUi();
         }
-    }
-
-    protected void setRecorderOutPutFile(String s)
-    {
-        if (VERSION.SDK_INT < VERSION_CODES.KITKAT
-                || !appSettingsManager.GetWriteExternal() && VERSION.SDK_INT >= VERSION_CODES.KITKAT)
-            recorder.setOutputFile(s);
-        else
-        {
-            File f = new File(s);
-            DocumentFile df = cameraUiWrapper.getActivityInterface().getFreeDcamDocumentFolder();
-            DocumentFile wr = df.createFile("*/*", f.getName());
-            try {
-                fileDescriptor = cameraUiWrapper.getContext().getContentResolver().openFileDescriptor(wr.getUri(), "rw");
-                recorder.setOutputFile(fileDescriptor.getFileDescriptor());
-            } catch (FileNotFoundException ex) {
-                Log.WriteEx(ex);
-                try {
-                    fileDescriptor.close();
-                } catch (IOException ex1) {
-                   Log.WriteEx(ex1);
-                }
-            }
-        }
-
     }
 
     @Override

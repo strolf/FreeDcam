@@ -22,7 +22,12 @@ package freed.cam.apis.camera2.parameters.modes;
 import android.annotation.TargetApi;
 import android.os.Build.VERSION_CODES;
 
+import com.troop.freedcam.R;
+
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 13.12.2014.
@@ -31,23 +36,23 @@ public class PictureSizeModeApi2 extends BaseModeApi2
 {
     private String size = "1920x1080";
     public PictureSizeModeApi2(CameraWrapperInterface cameraUiWrapper) {
-        super(cameraUiWrapper);
-    }
-    boolean firststart = true;
-    @Override
-    public boolean IsSupported() {
-        return true;
+        super(cameraUiWrapper,SettingKeys.PictureSize);
+        setViewState(ViewState.Visible);
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCamera)
     {
         fireStringValueChanged(valueToSet);
+        SettingsManager.get(SettingKeys.PictureSize).set(valueToSet);
         size = valueToSet;
-        if (setToCamera)
+        if (setToCamera &&
+                (SettingsManager.get(SettingKeys.PictureFormat).get().equals(FreedApplication.getStringFromRessources(R.string.pictureformat_jpeg))
+                    || SettingsManager.get(SettingKeys.PictureFormat).get().equals(FreedApplication.getStringFromRessources(R.string.pictureformat_jpg_p_dng)))
+                )
         {
-            cameraUiWrapper.stopPreview();
-            cameraUiWrapper.startPreview();
+            cameraUiWrapper.stopPreviewAsync();
+            cameraUiWrapper.startPreviewAsync();
         }
     }
 
@@ -61,6 +66,6 @@ public class PictureSizeModeApi2 extends BaseModeApi2
     @Override
     public String[] getStringValues()
     {
-        return cameraUiWrapper.getAppSettingsManager().pictureSize.getValues();
+        return SettingsManager.get(SettingKeys.PictureSize).getValues();
     }
 }

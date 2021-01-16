@@ -20,6 +20,13 @@
 package freed.cam.ui.themesample.settings.childs;
 
 import android.content.Context;
+import android.hardware.Camera;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
+import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Environment;
 import android.view.LayoutInflater;
@@ -31,12 +38,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
-import freed.ActivityInterface;
+import camera2_hidden_keys.ReflectionHelper;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.ParameterInterface;
 import freed.cam.apis.camera1.Camera1Fragment;
 import freed.cam.apis.camera1.CameraHolder;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
+import freed.utils.MediaScannerManager;
 import freed.utils.StringUtils;
 
 /**
@@ -49,6 +58,7 @@ public class SettingsChildMenuSaveCamParams extends SettingsChildMenu
     public SettingsChildMenuSaveCamParams(Context context, int headerid, int descriptionid, CameraWrapperInterface cameraUiWrapper) {
         super(context, headerid, descriptionid);
         this.cameraUiWrapper = cameraUiWrapper;
+        this.valueText.setText("");
     }
 
     @Override
@@ -73,11 +83,6 @@ public class SettingsChildMenuSaveCamParams extends SettingsChildMenu
         catch (Exception ex) {
             Log.d("Freedcam", ex.getMessage());
         }
-    }
-
-    @Override
-    public void SetStuff(ActivityInterface fragment_activityInterface, String settingvalue ) {
-
     }
 
     @Override
@@ -125,10 +130,10 @@ public class SettingsChildMenuSaveCamParams extends SettingsChildMenu
         Arrays.sort(paras);
 
         FileOutputStream outputStream;
-        File freedcamdir = new File(Environment.getExternalStorageDirectory() + StringUtils.freedcamFolder);
+        File freedcamdir = new File(SettingsManager.getInstance().getAppDataFolder().getAbsolutePath());
         if (!freedcamdir.exists())
             freedcamdir.mkdirs();
-        File file = new File(Environment.getExternalStorageDirectory() + StringUtils.freedcamFolder+ Build.MODEL + "_CameraParameters.txt");
+        File file = new File(freedcamdir.getAbsolutePath()+"/"+ Build.MODEL + "_CameraParameters.txt");
         try {
             //file.mkdirs();
             file.createNewFile();
@@ -145,9 +150,24 @@ public class SettingsChildMenuSaveCamParams extends SettingsChildMenu
                 outputStream.write((s+"\r\n").getBytes());
             }
 
+            ReflectionHelper reflectionHelper = new ReflectionHelper();
+
+            reflectionHelper.dumpClass(Camera.class,outputStream,0);
+            reflectionHelper.dumpClass(MediaRecorder.class,outputStream,0);
+
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+            {
+                reflectionHelper.dumpClass(CameraDevice.class,outputStream,0);
+                reflectionHelper.dumpClass(CameraCharacteristics.class,outputStream,0);
+                reflectionHelper.dumpClass(CaptureRequest.class,outputStream,0);
+                reflectionHelper.dumpClass(CaptureResult.class,outputStream,0);
+                reflectionHelper.dumpClass(CameraManager.class,outputStream,0);
+            }
+
             outputStream.close();
         } catch (Exception e) {
             Log.WriteEx(e);
         }
+        MediaScannerManager.ScanMedia(getContext(),file);
     }
 }

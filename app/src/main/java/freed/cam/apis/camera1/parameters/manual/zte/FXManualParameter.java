@@ -23,35 +23,23 @@ import android.hardware.Camera.Parameters;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
 import freed.cam.apis.camera1.parameters.manual.BaseManualParameter;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 public class FXManualParameter extends BaseManualParameter {
 
-    public FXManualParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, "", "", "", cameraUiWrapper,1);
-    }
-
-    @Override
-    public boolean IsSupported()
-    {
-        if(cameraUiWrapper.getAppSettingsManager().isZteAe())
+    public FXManualParameter(Parameters parameters, CameraWrapperInterface cameraUiWrapper,SettingKeys.Key key) {
+        super(parameters,cameraUiWrapper,key);
+        if(SettingsManager.getInstance().isZteAe())
         {
-            isSupported = true;
-            isVisible = true;
+            setViewState(ViewState.Visible);
             stringvalues = createStringArray(0,38,1);
-            return true;
         }
-        else
-            return false;
-
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return IsSupported();
     }
 
     @Override
@@ -59,7 +47,7 @@ public class FXManualParameter extends BaseManualParameter {
     {
         int i = 0;
         try {
-            if (cameraUiWrapper.getAppSettingsManager().isZteAe());
+            if (SettingsManager.getInstance().isZteAe());
                 i = 0;
         }
         catch (Exception ex)
@@ -71,9 +59,9 @@ public class FXManualParameter extends BaseManualParameter {
     }
 
     @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
-        parameters.set(cameraUiWrapper.getResString(R.string.morpho_effect_type), String.valueOf(valueToSet));
+        parameters.set(FreedApplication.getStringFromRessources(R.string.morpho_effect_type), String.valueOf(valueToSet));
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
 
     }

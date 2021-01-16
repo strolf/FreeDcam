@@ -23,23 +23,20 @@ import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.cam.apis.basecamera.parameters.ParameterEvents;
-import freed.cam.apis.sonyremote.sonystuff.SimpleStreamSurfaceView;
+import freed.cam.apis.sonyremote.PreviewStreamDrawer;
 
 /**
  * Created by troop on 25.03.2016.
  */
 public class PreviewZoomSony extends AbstractParameter
 {
-    private final SimpleStreamSurfaceView surfaceView;
+    private final PreviewStreamDrawer surfaceView;
     private int zoomFactor = 8;
-    public PreviewZoomSony( SimpleStreamSurfaceView surfaceView) {
+    public PreviewZoomSony( PreviewStreamDrawer surfaceView) {
+        super(null);
         this.surfaceView = surfaceView;
-    }
-
-    @Override
-    public boolean IsSupported() {
-        return VERSION.SDK_INT >= VERSION_CODES.KITKAT;
+        if (VERSION.SDK_INT >= VERSION_CODES.KITKAT)
+            setViewState(ViewState.Visible);
     }
 
     @Override
@@ -47,6 +44,7 @@ public class PreviewZoomSony extends AbstractParameter
     {
         zoomFactor = Integer.parseInt(valueToSet);
         surfaceView.PreviewZOOMFactor = zoomFactor;
+        fireIntValueChanged(zoomFactor);
     }
 
     @Override
@@ -58,16 +56,5 @@ public class PreviewZoomSony extends AbstractParameter
     public String[] getStringValues() {
         return new String[] {"2","4","8","10","12","14","16","18","20"};
     }
-
-    @Override
-    public void addEventListner(ParameterEvents eventListner) {
-        super.addEventListner(eventListner);
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return IsSupported();
-    }
-
 
 }

@@ -23,14 +23,16 @@ import android.annotation.TargetApi;
 import android.hardware.camera2.CaptureRequest.Key;
 import android.os.Build.VERSION_CODES;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.cam.apis.camera2.CameraHolderApi2;
+import freed.cam.apis.camera2.Camera2Fragment;
 import freed.cam.apis.camera2.CaptureSessionHandler;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
 import freed.utils.Log;
 import freed.utils.StringUtils;
 
@@ -41,67 +43,93 @@ import freed.utils.StringUtils;
 public class BaseModeApi2 extends AbstractParameter
 {
     private final String TAG = BaseModeApi2.class.getSimpleName();
-    protected CameraWrapperInterface cameraUiWrapper;
     protected HashMap<String, Integer> parameterValues;
-    protected AppSettingsManager.SettingMode settingMode;
     protected Key<Integer> parameterKey;
     protected CaptureSessionHandler captureSessionHandler;
 
-    public BaseModeApi2(CameraWrapperInterface cameraUiWrapper)
+    public BaseModeApi2(CameraWrapperInterface cameraUiWrapper,SettingKeys.Key settingMode)
     {
-        this.cameraUiWrapper =cameraUiWrapper;
-        this.captureSessionHandler = ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler;
+        super(cameraUiWrapper,settingMode);
+        this.captureSessionHandler = ((Camera2Fragment) cameraUiWrapper).captureSessionHandler;
     }
 
-    public BaseModeApi2(CameraWrapperInterface cameraUiWrapper, AppSettingsManager.SettingMode settingMode, Key<Integer> parameterKey) {
-        this(cameraUiWrapper);
-        this.settingMode = settingMode;
+    public BaseModeApi2(CameraWrapperInterface cameraUiWrapper, SettingKeys.Key key, Key<Integer> parameterKey) {
+        this(cameraUiWrapper,key);
         this.parameterKey = parameterKey;
-        isSupported = settingMode.isSupported();
 
         try {
-            if (isSupported) {
+            if (settingMode.isSupported()) {
                 String values[] = settingMode.getValues();
-                if (values == null) {
+                if (values == null || values.length == 0) {
                     Log.d(TAG, "Values are null set to unsupported");
                     parameterValues = null;
-                    isSupported = false;
+                    setViewState(ViewState.Hidden);
                     return;
                 }
+                Log.d(TAG, key.toString() + " array:" + Arrays.toString(values));
                 parameterValues = StringUtils.StringArrayToIntHashmap(values);
                 if (parameterValues == null) {
-                    isSupported = false;
+                    Log.d(TAG, "Parametervalues are null hide mode");
+                    setViewState(ViewState.Hidden);
                     return;
                 }
                 stringvalues = new String[parameterValues.size()];
                 parameterValues.keySet().toArray(stringvalues);
-            } else isSupported = false;
+                setViewState(ViewState.Visible);
+            }
+            else {
+                setViewState(ViewState.Hidden);
+                Log.d(TAG, key.toString() + " not supported");
+            }
+
         } catch (ArrayIndexOutOfBoundsException ex) {
-            isSupported = false;
+            setViewState(ViewState.Hidden);
             Log.WriteEx(ex);
         }
     }
 
     @Override
-    public void SetValue(String valueToSet, boolean setToCamera)
-    {
-        super.SetValue(valueToSet, setToCamera);
-        if (parameterValues == null)
+    protected void setValue(String valueToSet, boolean setToCamera) {
+        // if parameterValues are empty, the ui dont need to get notifyed
+        if (parameterValues == null || parameterValues.size() == 0)
             return;
-        int toset = parameterValues.get(valueToSet);
-        captureSessionHandler.SetParameterRepeating(parameterKey, toset);
+        //notfiy the ui that the value has changed
+        super.setValue(valueToSet, setToCamera);
+        //if the key is null dont apply it to the capturesession, thats the case for the PictureFormatParameterApi2
+        if (parameterKey == null)
+            return;
+        try {
+            int toset = parameterValues.get(valueToSet);
+            captureSessionHandler.SetParameterRepeating(parameterKey, toset,setToCamera);
+        }
+        catch (NullPointerException ex)
+        {
+            Log.WriteEx(ex);
+        }
     }
 
     @Override
     public String GetStringValue()
     {
-        if (parameterValues == null)
-            return "";
-        int i = captureSessionHandler.getPreviewParameter(parameterKey);
-        for (Map.Entry s : parameterValues.entrySet())
-            if (s.getValue().equals(i))
-                return s.getKey().toString();
-        return "";
+        if (parameterValues == null && captureSessionHandler == null)
+            return null;
+        try {
+            int i = captureSessionHandler.getPreviewParameter(parameterKey);
+            if (parameterValues == null)
+                return null;
+            Set<Map.Entry<String,Integer>> maps = parameterValues.entrySet();
+            if (maps == null || maps.size() == 0)
+                return null;
+            for (Map.Entry s : maps)
+                if (s.getValue().equals(i))
+                    return s.getKey().toString();
+        }
+        catch (NullPointerException ex)
+        {
+            Log.WriteEx(ex);
+        }
+
+        return null;
     }
 
 }

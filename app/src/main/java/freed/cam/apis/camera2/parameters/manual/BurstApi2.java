@@ -22,6 +22,7 @@ package freed.cam.apis.camera2.parameters.manual;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.ParameterEvents;
+import freed.settings.SettingKeys;
 
 /**
  * Created by troop on 10.09.2015.
@@ -32,25 +33,11 @@ public class BurstApi2 extends AbstractParameter implements ParameterEvents
 
 
     public BurstApi2(CameraWrapperInterface cameraUiWrapper) {
-        super(cameraUiWrapper);
-        stringvalues = new String[] {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30"};
+        super(cameraUiWrapper, SettingKeys.M_Burst);
+        setViewState(ViewState.Visible);
+        stringvalues = createStringArray(1,60,1);// new String[] {"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30"};
     }
 
-
-    @Override
-    public boolean IsSupported() {
-        return true;
-    }
-
-    @Override
-    public boolean IsVisible() {
-        return true;
-    }
-
-    @Override
-    public boolean IsSetSupported() {
-        return true;
-    }
 
     @Override
     public int GetValue() {
@@ -68,23 +55,16 @@ public class BurstApi2 extends AbstractParameter implements ParameterEvents
     }
 
     @Override
-    public void SetValue(int valueToSet)
+    public void SetValue(int valueToSet, boolean setToCamera)
     {
         current = valueToSet;
+        fireIntValueChanged(current);
     }
 
-    @Override
-    public void SetValue(String valueToSet, boolean setToCamera) {
 
-    }
 
     @Override
-    public void onIsSupportedChanged(boolean value) {
-
-    }
-
-    @Override
-    public void onIsSetSupportedChanged(boolean value) {
+    public void onViewStateChanged(ViewState value) {
 
     }
 

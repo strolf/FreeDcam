@@ -22,127 +22,88 @@ package freed;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
-import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.provider.DocumentFile;
-import android.support.v7.app.AppCompatActivity;
-import android.text.TextUtils;
-import android.view.View;
-import android.view.View.OnSystemUiVisibilityChangeListener;
-import android.view.WindowManager.LayoutParams;
+import android.os.Environment;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 
-import freed.cam.apis.basecamera.modules.I_WorkEvent;
-import freed.cam.ui.handler.MediaScannerManager;
-import freed.utils.AppSettingsManager;
+import freed.file.FileListController;
+import freed.image.ImageManager;
+import freed.settings.SettingsManager;
+import freed.utils.HideNavBarHelper;
 import freed.utils.Log;
-import freed.utils.PermissionHandler;
-import freed.utils.StorageFileHandler;
+import freed.utils.PermissionManager;
 import freed.viewer.helper.BitmapHelper;
-import freed.viewer.holder.FileHolder;
 
 /**
  * Created by troop on 28.03.2016.
  */
-public abstract class ActivityAbstract extends AppCompatActivity implements ActivityInterface, I_WorkEvent {
+public abstract class ActivityAbstract extends AppCompatActivity implements ActivityInterface {
 
-    public static final boolean LOG_TO_FILE = true;
-
-    protected boolean initDone = false;
-
-
-    public enum FormatTypes
-    {
-        all,
-        raw,
-        dng,
-        jpg,
-        jps,
-        mp4,
-    }
+    private final boolean forceLogging = false;
 
     private final String TAG = ActivityAbstract.class.getSimpleName();
-    private AppSettingsManager appSettingsManager;
     protected BitmapHelper bitmapHelper;
-    protected  List<FileHolder> files =  new ArrayList<>();
-    protected StorageFileHandler storageHandler;
-    private PermissionHandler permissionHandler;
+    protected FileListController fileListController;
+    private I_OnActivityResultCallback resultCallback;
+    private HideNavBarHelper hideNavBarHelper;
+    private PermissionManager permissionManager;
+    public PermissionManager getPermissionManager() {
+        return permissionManager;
+    }
 
-
-    private final int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentToView();
-        permissionHandler =new PermissionHandler(this);
-        if (LOG_TO_FILE && !Log.isLogToFileEnable()) {
-            permissionHandler.hasExternalSDPermission(logSDPermission);
+        Log.d(TAG,"onCreate");
+        hideNavBarHelper = new HideNavBarHelper();
+        permissionManager =new PermissionManager(this);
+        if (!SettingsManager.getInstance().isInit()) {
+            SettingsManager.getInstance().init();
         }
-        else
-            initOnCreate();
-    }
-
-    protected void initOnCreate()
-    {
-        initDone = true;
-        Log.d(TAG, "initOnCreate()");
-        SettingsApplication application = (SettingsApplication)getApplication();
-        if (application.getAppSettingsManager() == null) {
-            appSettingsManager = new AppSettingsManager(PreferenceManager.getDefaultSharedPreferences(getBaseContext()), getBaseContext().getResources());
-            application.setAppSettingsManager(appSettingsManager);
-        }
-        else
-            appSettingsManager = application.getAppSettingsManager();
-    }
-
-    private PermissionHandler.PermissionCallback logSDPermission = new PermissionHandler.PermissionCallback()
-    {
-        @Override
-        public void permissionGranted(boolean granted) {
-            if (granted) {
-                if (!Log.isLogToFileEnable() && LOG_TO_FILE) {
-                    new Log();
-                }
-                initOnCreate();
+        Log.d(TAG,"onCreatePermissionGranted");
+        File log = new File(FreedApplication.getContext().getExternalFilesDir(null)+ "/log.txt");
+        if (!forceLogging) {
+            if (!Log.isLogToFileEnable() && log.exists()) {
+                new Log();
             }
         }
-    };
+        else
+        {
+            new Log();
+        }
+        Log.d(TAG, "initOnCreate()");
 
-    protected void setContentToView()
-    {
+    }
 
+    protected abstract void setContentToView();
+
+    @Override
+    protected void onPostCreate(Bundle savedInstanceState) {
+        super.onPostCreate(savedInstanceState);
+        ImageManager.getInstance(); // init it
     }
 
     @Override
     protected void onDestroy() {
+        ImageManager.cancelImageSaveTasks();
+        ImageManager.cancelImageLoadTasks();
+        SettingsManager.getInstance().release();
         super.onDestroy();
         /*if (Log.isLogToFileEnable())
             Log.destroy();*/
     }
 
     @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (hasFocus)
-            HIDENAVBAR();
+    protected void onResume() {
+        super.onResume();
     }
 
     @Override
@@ -152,39 +113,17 @@ public abstract class ActivityAbstract extends AppCompatActivity implements Acti
         Log.flush();
     }
 
-    private void HIDENAVBAR()
-    {
-        if (VERSION.SDK_INT < 16) {
-            getWindow().setFlags(LayoutParams.FLAG_FULLSCREEN,
-                    LayoutParams.FLAG_FULLSCREEN);
-        }
-        else
-        {
-            //HIDE nav and action bar
-            View decorView = getWindow().getDecorView();
-            decorView.setSystemUiVisibility(flags);
-            decorView.setOnSystemUiVisibilityChangeListener(new OnSystemUiVisibilityChangeListener() {
-                @Override
-                public void onSystemUiVisibilityChange(int visibility) {
-                    if (visibility > 0) {
-                        if (VERSION.SDK_INT >= 16)
-                            getWindow().getDecorView().setSystemUiVisibility(flags);
-                    }
-                }
-            });
-        }
-    }
-
-
-    private I_OnActivityResultCallback resultCallback;
-
-    @Override
-    public void SwitchCameraAPI(String Api) {
-
-    }
-
     @Override
     public void closeActivity() {
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus)
+            hideNavBarHelper.HIDENAVBAR(getWindow());
+        else
+            hideNavBarHelper.showNavbar(getWindow());
     }
 
     @Override
@@ -203,11 +142,12 @@ public abstract class ActivityAbstract extends AppCompatActivity implements Acti
     }
 
     private final int READ_REQUEST_CODE = 42;
+    public static final int DELETE_REQUEST_CODE = 433;
 
     @TargetApi(VERSION_CODES.KITKAT)
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data)
-    {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == READ_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             // The document selected by the user won't be returned in the intent.
             // Instead, a URI to that document will be contained in the return intent
@@ -221,10 +161,9 @@ public abstract class ActivityAbstract extends AppCompatActivity implements Acti
                 // Check for the freshest data.
 
 
-                getContentResolver().takePersistableUriPermission(uri,takeFlags);
-                appSettingsManager.SetBaseFolder(uri.toString());
-                if (resultCallback != null)
-                {
+                getContentResolver().takePersistableUriPermission(uri, takeFlags);
+                SettingsManager.getInstance().SetBaseFolder(uri.toString());
+                if (resultCallback != null) {
                     resultCallback.onActivityResultCallback(uri);
                     resultCallback = null;
                 }
@@ -232,10 +171,6 @@ public abstract class ActivityAbstract extends AppCompatActivity implements Acti
         }
     }
 
-    @Override
-    public PermissionHandler getPermissionHandler() {
-        return permissionHandler;
-    }
 
     @Override
     public BitmapHelper getBitmapHelper() {
@@ -243,222 +178,9 @@ public abstract class ActivityAbstract extends AppCompatActivity implements Acti
     }
 
     @Override
-    public Context getContext() {
-        return getApplicationContext();
+    public FileListController getFileListController() {
+        return this.fileListController;
     }
-
-    @Override
-    public AppSettingsManager getAppSettings() {
-        return appSettingsManager;
-    }
-
-    @Override
-    public StorageFileHandler getStorageHandler() {
-        return this.storageHandler;
-    }
-
-    @Override
-    public boolean DeleteFile(FileHolder file) {
-        return deleteFile(file);
-    }
-
-    @Override
-    public void DeleteFiles(List<FileHolder> files) {
-        for (FileHolder f : files)
-            deleteFile(f);
-    }
-
-    private boolean deleteFile(FileHolder file)
-    {
-        boolean del = false;
-        synchronized (files) {
-            bitmapHelper.DeleteCache(file.getFile());
-            if (VERSION.SDK_INT <= VERSION_CODES.LOLLIPOP || file.getFile().canWrite()) {
-                del = file.getFile().delete();
-            }
-            if (!del && VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP)
-                del = delteDocumentFile(file.getFile());
-            if (del) {
-                if (files != null)
-                    files.remove(file);
-            }
-            MediaScannerManager.ScanMedia(getContext(), file.getFile());
-            return del;
-        }
-    }
-
-    public void AddFile(FileHolder file)
-    {
-        synchronized (files) {
-            files.add(file);
-            SortFileHolder(files);
-        }
-    }
-
-    public void AddFiles(FileHolder[] fil)
-    {
-        synchronized (files) {
-            for (FileHolder fh : fil)
-            {
-                if (fh != null)
-                    files.add(fh);
-            }
-            SortFileHolder(files);
-        }
-    }
-
-    @Override
-    public List<FileHolder> getFiles() {
-        return this.files;
-    }
-
-    /**
-     * Loads the files stored from that folder
-     * @param fileHolder the folder to lookup
-     * @param types the file format to load
-     */
-    @Override
-    public void LoadFolder(FileHolder fileHolder,FormatTypes types )
-    {
-        synchronized (files) {
-            files.clear();
-            storageHandler.readFilesFromFolder(fileHolder.getFile(), files, types, fileHolder.isExternalSD());
-        }
-    }
-
-    /**
-     * Loads all Folders from DCIM dir from internal and external SD
-     */
-    @Override
-    public void LoadDCIMDirs()
-    {
-        synchronized (files) {
-            files.clear();
-            files = storageHandler.getDCIMDirs();
-        }
-    }
-
-    /**
-     * Loads all files stored in DCIM/FreeDcam from internal and external SD
-     */
-    @Override
-    public void LoadFreeDcamDCIMDirsFiles() {
-        synchronized (files) {
-            files = storageHandler.getFreeDcamDCIMDirsFiles();
-        }
-    }
-
-    private void SortFileHolder(List<FileHolder> f)
-    {
-        Collections.sort(f, new Comparator<FileHolder>() {
-            public int compare(FileHolder f1, FileHolder f2) {
-                return Long.valueOf(f2.getFile().lastModified()).compareTo(f1.getFile().lastModified());
-            }
-        });
-    }
-
-    private  File getStorageDirectory() {
-        String path = System.getenv("ANDROID_STORAGE");
-        return (path == null || TextUtils.isEmpty(path)) ? new File("/storage") : new File(path);
-    }
-
-    @Override
-    public DocumentFile getExternalSdDocumentFile()
-    {
-        DocumentFile sdDir = null;
-        String extSdFolder =  appSettingsManager.GetBaseFolder();
-        if (extSdFolder == null || extSdFolder.equals(""))
-            return null;
-        Uri uri = Uri.parse(extSdFolder);
-        sdDir = DocumentFile.fromTreeUri(getContext(), uri);
-        return sdDir;
-    }
-
-    private DocumentFile getDCIMDocumentFolder(boolean create) {
-        DocumentFile documentFile = null;
-        DocumentFile sdDir;
-        if ((sdDir = getExternalSdDocumentFile()) != null) {
-            documentFile = sdDir.findFile("DCIM");
-            if (documentFile == null && create)
-                documentFile = sdDir.createDirectory("DCIM");
-        }
-        return documentFile;
-    }
-
-    @Override
-    public DocumentFile getFreeDcamDocumentFolder()
-    {
-        DocumentFile dcimfolder;
-        DocumentFile freedcamfolder = null;
-        if((dcimfolder = getDCIMDocumentFolder(true)) !=null)
-        {
-            freedcamfolder = dcimfolder.findFile("FreeDcam");
-            if (freedcamfolder == null)
-                freedcamfolder = dcimfolder.createDirectory("FreeDcam");
-        }
-        return freedcamfolder;
-    }
-
-    private boolean delteDocumentFile(File file) throws NullPointerException
-    {
-        if (file.isDirectory())
-        {
-            File[] files = file.listFiles();
-            for (File f : files)
-                deletFile(f);
-            deletFile(file);
-        }
-        else
-        {
-            Boolean d = deletFile(file);
-            if (d != null) return d;
-        }
-        return true;
-    }
-
-    @Nullable
-    private boolean deletFile(File file) {
-        if (!file.delete())
-        {
-            DocumentFile sdDir = getExternalSdDocumentFile();
-            if (sdDir == null)
-                return false;
-            String baseS = sdDir.getName();
-            String fileFolder = file.getAbsolutePath();
-            String[] split = fileFolder.split("/");
-            DocumentFile tmpdir = null;
-            boolean append = false;
-            for (String aSplit : split) {
-                if (aSplit.equals(baseS) || append) {
-                    if (!append) {
-                        append = true;
-                        tmpdir = sdDir;
-                    } else {
-                        tmpdir = tmpdir.findFile(aSplit);
-                    }
-                }
-            }
-            boolean d = false;
-            d = !(tmpdir != null && tmpdir.exists()) || tmpdir.delete();
-            Log.d("delteDocumentFile", "file delted:" + d);
-            return d;
-        }
-        return true;
-    }
-
-    @Override
-    public void DisablePagerTouch(boolean disable)
-    {
-
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults)
-    {
-        permissionHandler.onRequestPermissionsResult(requestCode,permissions,grantResults);
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-    }
-
 
     @Override
     public int getOrientation() {
@@ -471,7 +193,7 @@ public abstract class ActivityAbstract extends AppCompatActivity implements Acti
     }
 
     @Override
-    public void ScanFile(File file) {
-        MediaScannerManager.ScanMedia(getContext(),file);
+    public void runFeatureDetector() {
+
     }
 }

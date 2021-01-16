@@ -20,7 +20,6 @@
 package freed.cam.apis.basecamera;
 
 import android.location.Location;
-import android.view.SurfaceHolder;
 
 /**
  * Created by troop on 15.08.2014.
@@ -34,25 +33,10 @@ public interface CameraHolderInterface
      */
     boolean OpenCamera(int camera);
     void CloseCamera();
-    /**
-     *
-     * @return the count of avail cameras
-     */
-    int CameraCout();
-    boolean IsRdy();
 
-    /**
-     * The the surface to camera
-     * @param texture to set
-     * @return
-     */
-    boolean SetSurface(SurfaceHolder texture);
-    void StartPreview();
-    void StopPreview();
+
     void SetLocation(Location location);
-    void StartFocus();
     void CancelFocus();
-    void ResetPreviewCallback();
-    void SendUIMessage(String msg);
+
 
 }

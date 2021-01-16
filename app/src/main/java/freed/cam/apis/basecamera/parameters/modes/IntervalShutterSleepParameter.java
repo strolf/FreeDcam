@@ -23,8 +23,11 @@ import android.text.TextUtils;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by troop on 08.01.2016.
@@ -35,21 +38,25 @@ public class IntervalShutterSleepParameter extends AbstractParameter
     private CameraWrapperInterface cameraUiWrapper;
     public IntervalShutterSleepParameter(CameraWrapperInterface cameraUiWrapper)
     {
+        super(SettingKeys.INTERVAL_SHUTTER_SLEEP);
         this.cameraUiWrapper = cameraUiWrapper;
-        if (TextUtils.isEmpty(cameraUiWrapper.getAppSettingsManager().interval.get()))
-            cameraUiWrapper.getAppSettingsManager().interval.set(current);
+        if (TextUtils.isEmpty(SettingsManager.get(SettingKeys.INTERVAL_SHUTTER_SLEEP).get()))
+            SettingsManager.get(SettingKeys.INTERVAL_SHUTTER_SLEEP).set(current);
         else
-            current = cameraUiWrapper.getAppSettingsManager().interval.get();
+            current = SettingsManager.get(SettingKeys.INTERVAL_SHUTTER_SLEEP).get();
+        fireStringValueChanged(current);
     }
 
     @Override
-    public boolean IsSupported() {
-        return true;
+    public ViewState getViewState() {
+        return ViewState.Visible;
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCamera) {
         current = valueToSet;
+        SettingsManager.get(SettingKeys.INTERVAL_SHUTTER_SLEEP).set(current);
+        fireStringValueChanged(current);
     }
 
     @Override
@@ -59,6 +66,6 @@ public class IntervalShutterSleepParameter extends AbstractParameter
 
     @Override
     public String[] getStringValues() {
-        return cameraUiWrapper.getContext().getResources().getStringArray(R.array.interval_shutter_sleep);
+        return FreedApplication.getStringArrayFromRessource(R.array.interval_shutter_sleep);
     }
 }

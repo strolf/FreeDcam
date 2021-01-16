@@ -23,13 +23,16 @@ import android.hardware.Camera;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.apis.basecamera.parameters.ParameterEvents;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
+import freed.settings.SettingKeys;
 
 /**
  * Created by troop on 10.06.2016.
  */
-public class NightModeXiaomi extends BaseModeParameter
+public class NightModeXiaomi extends BaseModeParameter implements ParameterEvents
 {
     final String TAG = NightModeZTE.class.getSimpleName();
     private boolean visible = true;
@@ -38,78 +41,85 @@ public class NightModeXiaomi extends BaseModeParameter
     private String curmodule = "";
 
     public NightModeXiaomi(Camera.Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, cameraUiWrapper);
-        if(parameters.get(cameraUiWrapper.getResString(R.string.morpho_hht)) != null
-                && parameters.get(cameraUiWrapper.getAppSettingsManager().getResString(R.string.ae_bracket_hdr)) != null) {
-            isSupported = true;
-            isVisible = true;
-            cameraUiWrapper.getModuleHandler().addListner(this);
-            cameraUiWrapper.getParameterHandler().PictureFormat.addEventListner(this);
+        super(parameters, cameraUiWrapper,SettingKeys.NightMode);
+        if(parameters.get(FreedApplication.getStringFromRessources(R.string.morpho_hht)) != null
+                && parameters.get(FreedApplication.getStringFromRessources(R.string.ae_bracket_hdr)) != null) {
+            setViewState(ViewState.Visible);
+            //cameraUiWrapper.getParameterHandler().get(SettingKeys.PictureFormat).addEventListner(this);
         }
-    }
-
-    @Override
-    public boolean IsSupported()
-    {
-        return isSupported;
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCam)
     {
-        if (valueToSet.equals(cameraUiWrapper.getResString(R.string.on_))) {
-            parameters.set(cameraUiWrapper.getResString(R.string.morpho_hdr), cameraUiWrapper.getResString(R.string.false_));
-            cameraUiWrapper.getParameterHandler().HDRMode.fireStringValueChanged(cameraUiWrapper.getResString(R.string.off_));
+        if (valueToSet.equals(FreedApplication.getStringFromRessources(R.string.on_))) {
+            parameters.set(FreedApplication.getStringFromRessources(R.string.morpho_hdr), FreedApplication.getStringFromRessources(R.string.false_));
+            cameraUiWrapper.getParameterHandler().get(SettingKeys.HDRMode).fireStringValueChanged(FreedApplication.getStringFromRessources(R.string.off_));
             parameters.set("capture-burst-exposures","-10,0,10");
-            parameters.set(cameraUiWrapper.getAppSettingsManager().getResString(R.string.ae_bracket_hdr), cameraUiWrapper.getAppSettingsManager().getResString(R.string.ae_bracket_hdr_values_aebracket));
-            parameters.set(cameraUiWrapper.getResString(R.string.morpho_hht), cameraUiWrapper.getResString(R.string.true_));
+            parameters.set(FreedApplication.getStringFromRessources(R.string.ae_bracket_hdr), FreedApplication.getStringFromRessources(R.string.ae_bracket_hdr_values_aebracket));
+            parameters.set(FreedApplication.getStringFromRessources(R.string.morpho_hht), FreedApplication.getStringFromRessources(R.string.true_));
         } else {
-            parameters.set(cameraUiWrapper.getAppSettingsManager().getResString(R.string.ae_bracket_hdr), cameraUiWrapper.getAppSettingsManager().getResString(R.string.ae_bracket_hdr_values_aebracket));
-            parameters.set(cameraUiWrapper.getResString(R.string.morpho_hht), cameraUiWrapper.getResString(R.string.false_));
+            parameters.set(FreedApplication.getStringFromRessources(R.string.ae_bracket_hdr), FreedApplication.getStringFromRessources(R.string.ae_bracket_hdr_values_aebracket));
+            parameters.set(FreedApplication.getStringFromRessources(R.string.morpho_hht), FreedApplication.getStringFromRessources(R.string.false_));
         }
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
-        onStringValueChanged(valueToSet);
+        fireStringValueChanged(valueToSet);
 
     }
 
     @Override
     public String GetStringValue()
     {
-        if (parameters.get(cameraUiWrapper.getResString(R.string.morpho_hht)).equals(cameraUiWrapper.getResString(R.string.true_))
-                && parameters.get(cameraUiWrapper.getAppSettingsManager().getResString(R.string.ae_bracket_hdr)).equals(cameraUiWrapper.getAppSettingsManager().getResString(R.string.ae_bracket_hdr_values_off)))
-            return cameraUiWrapper.getResString(R.string.on_);
+        if (parameters.get(FreedApplication.getStringFromRessources(R.string.morpho_hht)).equals(FreedApplication.getStringFromRessources(R.string.true_))
+                && parameters.get(FreedApplication.getStringFromRessources(R.string.ae_bracket_hdr)).equals(FreedApplication.getStringFromRessources(R.string.ae_bracket_hdr_values_off)))
+            return FreedApplication.getStringFromRessources(R.string.on_);
         else
-            return cameraUiWrapper.getResString(R.string.off_);
+            return FreedApplication.getStringFromRessources(R.string.off_);
     }
 
     @Override
     public String[] getStringValues()
     {
-        return new String[] {cameraUiWrapper.getResString(R.string.off_),cameraUiWrapper.getResString(R.string.on_)};
+       return new String[] {FreedApplication.getStringFromRessources(R.string.off_),FreedApplication.getStringFromRessources(R.string.on_)};
     }
 
     @Override
     public void onModuleChanged(String module)
     {
         curmodule = module;
-        if (curmodule.equals(cameraUiWrapper.getResString(R.string.module_video))|| curmodule.equals(cameraUiWrapper.getResString(R.string.module_hdr)))
+        if (curmodule.equals(FreedApplication.getStringFromRessources(R.string.module_video))|| curmodule.equals(FreedApplication.getStringFromRessources(R.string.module_hdr)))
             Hide();
         else
         {
-            if (format.contains(cameraUiWrapper.getResString(R.string.jpeg_))) {
+            if (format.contains(FreedApplication.getStringFromRessources(R.string.jpeg_))) {
                 Show();
-                onIsSupportedChanged(true);
+                setViewState(ViewState.Visible);
             }
         }
     }
 
     @Override
+    public void onViewStateChanged(ViewState value) {
+
+    }
+
+    @Override
+    public void onIntValueChanged(int current) {
+
+    }
+
+    @Override
+    public void onValuesChanged(String[] values) {
+
+    }
+
+    @Override
     public void onStringValueChanged(String val) {
         format = val;
-        if (val.contains(cameraUiWrapper.getResString(R.string.jpeg_))&&!visible &&!curmodule.equals(cameraUiWrapper.getResString(R.string.module_hdr)))
+        if (val.contains(FreedApplication.getStringFromRessources(R.string.jpeg_))&&!visible &&!curmodule.equals(FreedApplication.getStringFromRessources(R.string.module_hdr)))
             Show();
 
-        else if (!val.contains(cameraUiWrapper.getResString(R.string.jpeg_))&& visible) {
+        else if (!val.contains(FreedApplication.getStringFromRessources(R.string.jpeg_))&& visible) {
             Hide();
         }
     }
@@ -118,16 +128,16 @@ public class NightModeXiaomi extends BaseModeParameter
     {
         state = GetStringValue();
         visible = false;
-        SetValue(cameraUiWrapper.getResString(R.string.off_),true);
-        onStringValueChanged(cameraUiWrapper.getResString(R.string.off_));
-        onIsSupportedChanged(visible);
+        SetValue(FreedApplication.getStringFromRessources(R.string.off_),true);
+        fireStringValueChanged(FreedApplication.getStringFromRessources(R.string.off_));
+        setViewState(ViewState.Hidden);
     }
 
     private void Show()
     {
         visible = true;
         SetValue(state,true);
-        onStringValueChanged(state);
-        onIsSupportedChanged(visible);
+        fireStringValueChanged(state);
+        setViewState(ViewState.Visible);
     }
 }

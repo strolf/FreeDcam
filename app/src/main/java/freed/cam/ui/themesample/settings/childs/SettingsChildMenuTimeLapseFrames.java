@@ -20,9 +20,9 @@
 package freed.cam.ui.themesample.settings.childs;
 
 import android.content.Context;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -30,7 +30,8 @@ import android.widget.LinearLayout;
 import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
 
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 /**
@@ -47,12 +48,9 @@ public class SettingsChildMenuTimeLapseFrames extends LinearLayout
     private final float mover = (float)1/60;
     private final float bigmover = 1;
     private String settingsname;
-    private AppSettingsManager appSettingsManager;
 
-
-    public SettingsChildMenuTimeLapseFrames(Context context,AppSettingsManager appSettingsManager) {
+    public SettingsChildMenuTimeLapseFrames(Context context) {
         super(context);
-        this.appSettingsManager = appSettingsManager;
         init(context);
     }
 
@@ -63,43 +61,36 @@ public class SettingsChildMenuTimeLapseFrames extends LinearLayout
     }
     private void init(Context context)
     {
-        Context context1 = context;
         LayoutInflater inflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         inflater.inflate(layout.settings_expandable_childs_number, this);
-        Button plus = (Button) findViewById(id.button_plus);
-        Button minus = (Button) findViewById(id.button_minus);
-        editText = (EditText) findViewById(id.editText_number);
+        Button plus = findViewById(id.button_plus);
+        Button minus = findViewById(id.button_minus);
+        editText = findViewById(id.editText_number);
         plus.setClickable(true);
         minus.setClickable(true);
 
         //this.setClickable(false);
 
-        minus.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
+        minus.setOnClickListener(v -> {
 
-                if (current - bigmover >= 1)
-                    current -= bigmover;
-                else if (current - mover > min)
-                    current -= mover;
-                setCurrent(current);
-            }
+            if (current - bigmover >= 1)
+                current -= bigmover;
+            else if (current - mover > min)
+                current -= mover;
+            setCurrent(current);
         });
-        plus.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (current +mover > 1 && current + bigmover <= max)
-                    current += bigmover;
-                else if (current + mover <= 1) {
-                    current += mover;
-                }
-                setCurrent(current);
+        plus.setOnClickListener(v -> {
+            if (current +mover > 1 && current + bigmover <= max)
+                current += bigmover;
+            else if (current + mover <= 1) {
+                current += mover;
+            }
+            setCurrent(current);
 
-            }
         });
-        settingsname = AppSettingsManager.TIMELAPSEFRAME;
-        String fps = appSettingsManager.getApiString(settingsname);
-        if (fps == null || fps.equals(""))
+        settingsname = SettingsManager.TIMELAPSEFRAME;
+        String fps = SettingsManager.get(SettingKeys.TIMELAPSE_FRAMES).get();
+        if (fps == null || TextUtils.isEmpty(fps) || fps.equals("null"))
             fps = "30";
 
         Log.d(TAG, "set to " + fps);
@@ -121,7 +112,7 @@ public class SettingsChildMenuTimeLapseFrames extends LinearLayout
         {
             Log.WriteEx(ex);
         }
-        appSettingsManager.setApiString(settingsname, current + "");
+        SettingsManager.get(SettingKeys.TIMELAPSE_FRAMES).set(String.valueOf(current));
         if (current >= 1)
             editText.setText(current + " fps");
         else

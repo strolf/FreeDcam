@@ -21,8 +21,10 @@ package freed.cam.apis.sonyremote.parameters.modes;
 
 import java.io.IOException;
 
+import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.sonyremote.sonystuff.JsonUtils;
 import freed.cam.apis.sonyremote.sonystuff.SimpleRemoteApi;
+import freed.settings.SettingKeys;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
 
@@ -30,8 +32,8 @@ import freed.utils.Log;
  * Created by troop on 09.08.2016.
  */
 public class FocusModeSony extends BaseModeParameterSony {
-    public FocusModeSony(String VALUE_TO_GET, String VALUE_TO_SET, String VALUES_TO_GET, SimpleRemoteApi mRemoteApi) {
-        super(VALUE_TO_GET, VALUE_TO_SET, VALUES_TO_GET, mRemoteApi);
+    public FocusModeSony(String VALUE_TO_GET, String VALUE_TO_SET, String VALUES_TO_GET, SimpleRemoteApi mRemoteApi, CameraWrapperInterface wrapperInterface) {
+        super(VALUE_TO_GET, VALUE_TO_SET, VALUES_TO_GET, mRemoteApi,wrapperInterface, SettingKeys.FocusMode);
     }
 
     @Override
@@ -39,18 +41,14 @@ public class FocusModeSony extends BaseModeParameterSony {
         super.SetValue(valueToSet, setToCamera);
         if (JsonUtils.isApiSupported("setLiveviewFrameInfo", mAvailableCameraApiSet))
         {
-            FreeDPool.Execute(new Runnable() {
-                @Override
-                public void run()
-                {
-                    try {
-                        if (valueToSet.equals("MF"))
-                            mRemoteApi.setLiveviewFrameInfo(false);
-                        else
-                            mRemoteApi.setLiveviewFrameInfo(true);
-                    } catch (IOException e) {
-                        Log.WriteEx(e);
-                    }
+            FreeDPool.Execute(() -> {
+                try {
+                    if (valueToSet.equals("MF"))
+                        mRemoteApi.setLiveviewFrameInfo(false);
+                    else
+                        mRemoteApi.setLiveviewFrameInfo(true);
+                } catch (IOException e) {
+                    Log.WriteEx(e);
                 }
             });
 

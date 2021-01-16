@@ -26,10 +26,12 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.util.Set;
 
+import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.ParameterEvents;
 import freed.cam.apis.sonyremote.sonystuff.JsonUtils;
 import freed.cam.apis.sonyremote.sonystuff.SimpleRemoteApi;
+import freed.settings.SettingKeys;
 import freed.utils.FreeDPool;
 import freed.utils.Log;
 
@@ -48,62 +50,60 @@ public class BaseModeParameterSony extends AbstractParameter implements I_SonyAp
     JSONObject jsonObject;
     private final String TAG = BaseModeParameterSony.class.getSimpleName();
 
-    public BaseModeParameterSony(String VALUE_TO_GET, String VALUE_TO_SET, String VALUES_TO_GET, SimpleRemoteApi mRemoteApi)
+    public BaseModeParameterSony(String VALUE_TO_GET, String VALUE_TO_SET, String VALUES_TO_GET, SimpleRemoteApi mRemoteApi, CameraWrapperInterface  wrapperInterface, SettingKeys.Key key)
     {
+        super(wrapperInterface,key);
         this.VALUE_TO_GET = VALUE_TO_GET;
         this.VALUE_TO_SET = VALUE_TO_SET;
         this.VALUES_TO_GET = VALUES_TO_GET;
         this.mRemoteApi = mRemoteApi;
+
     }
 
     @Override
     public void SonyApiChanged(Set<String> mAvailableCameraApiSet)
     {
+        boolean isSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_GET, mAvailableCameraApiSet);
+        boolean isSetSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_SET, mAvailableCameraApiSet);
+        boolean isGetValuesSupported =  JsonUtils.isCameraApiAvailable(VALUES_TO_GET, mAvailableCameraApiSet);
         this.mAvailableCameraApiSet = mAvailableCameraApiSet;
-        if (isSupported != JsonUtils.isCameraApiAvailable(VALUE_TO_GET, mAvailableCameraApiSet))
-        {
-            isSupported = JsonUtils.isCameraApiAvailable(VALUE_TO_GET, mAvailableCameraApiSet);
-            fireIsSupportedChanged(isSupported);
-            onStringValueChanged(GetStringValue());
+
+        if ((isSupported || isGetValuesSupported) && isSetSupported) {
+            getStringValues();
+            setViewState(ViewState.Visible);
         }
+        else if (isSupported && !isSetSupported)
+            setViewState(ViewState.Disabled);
+        else
+            setViewState(ViewState.Hidden);
 
     }
 
-
     @Override
-    public boolean IsSupported()
-    {
-        return isSupported;
-    }
-
-    @Override
-    public void SetValue(final String valueToSet, boolean setToCamera)
-    {
-        super.SetValue(valueToSet,setToCamera);
-        FreeDPool.Execute(new Runnable() {
-            @Override
-            public void run() {
-                processValuesToSet(valueToSet);
-                onStringValueChanged(valueToSet);
-            }
-        });
+    protected void setValue(String valueToSet, boolean setToCamera) {
+        super.setValue(valueToSet, setToCamera);
+        processValuesToSet(valueToSet);
+        onStringValueChanged(valueToSet);
     }
 
     protected void processValuesToSet(String valueToSet)
     {
-        try
-        {
-            try {
-                JSONArray array = new JSONArray().put(0, valueToSet);
-                JSONObject jsonObject = mRemoteApi.setParameterToCamera(VALUE_TO_SET, array);
-            } catch (JSONException ex) {
+        FreeDPool.Execute(() -> {
+            try
+            {
+                try {
+                    JSONArray array = new JSONArray().put(0, valueToSet);
+                    JSONObject jsonObject = mRemoteApi.setParameterToCamera(VALUE_TO_SET, array);
+                } catch (JSONException ex) {
+                    Log.WriteEx(ex);
+                }
+
+
+            } catch (IOException ex) {
                 Log.WriteEx(ex);
             }
+        });
 
-
-        } catch (IOException ex) {
-            Log.WriteEx(ex);
-        }
     }
 
 
@@ -183,14 +183,8 @@ public class BaseModeParameterSony extends AbstractParameter implements I_SonyAp
     }
 
     @Override
-    public void onIsSupportedChanged(boolean value) {
-        isSupported = value;
-    }
-
-    @Override
-    public void onIsSetSupportedChanged(boolean value) {
-        isNotReadOnly = value;
-
+    public void onViewStateChanged(ViewState value) {
+        setViewState(value);
     }
 
     @Override

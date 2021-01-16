@@ -19,20 +19,25 @@
 
 package freed.cam.apis.camera1.parameters.manual.qcom;
 
-/**
- * Created by George on 1/21/2015.
+/*
+  Created by George on 1/21/2015.
  */
 
 import android.hardware.Camera.Parameters;
 
 import com.troop.freedcam.R;
 
+import org.greenrobot.eventbus.Subscribe;
+
 import java.util.ArrayList;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
-import freed.cam.apis.basecamera.modules.ModuleChangedEvent;
 import freed.cam.apis.camera1.parameters.ParametersHandler;
 import freed.cam.apis.camera1.parameters.manual.BaseManualParameter;
+import freed.cam.events.ModuleHasChangedEvent;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 
 public class BurstManualParam extends BaseManualParameter
@@ -40,17 +45,16 @@ public class BurstManualParam extends BaseManualParameter
 
     final String TAG = BurstManualParam.class.getSimpleName();
 
-    public BurstManualParam(Parameters parameters, CameraWrapperInterface cameraUiWrapper) {
-        super(parameters, "", "", "", cameraUiWrapper,1);
-        isSupported = cameraUiWrapper.getAppSettingsManager().manualBurst.isSupported();
-        stringvalues = cameraUiWrapper.getAppSettingsManager().manualBurst.getValues();
-        currentInt = Integer.parseInt(cameraUiWrapper.getAppSettingsManager().manualBurst.get());
+    public BurstManualParam(Parameters parameters, CameraWrapperInterface cameraUiWrapper,SettingKeys.Key settingMode) {
+        super(parameters,cameraUiWrapper,settingMode);
+        currentInt = Integer.parseInt(SettingsManager.get(SettingKeys.M_Burst).get());
+        setViewState(ViewState.Visible);
     }
 
     @Override
     protected String[] createStringArray(int min, int max, float step) {
         ArrayList<String> ar = new ArrayList<>();
-        ar.add(cameraUiWrapper.getResString(R.string.off_));
+        ar.add(FreedApplication.getStringFromRessources(R.string.off_));
         if (step == 0)
             step = 1;
         for (int i = min; i < max; i+=step)
@@ -60,10 +64,6 @@ public class BurstManualParam extends BaseManualParameter
         return ar.toArray(new String[ar.size()]);
     }
 
-    @Override
-    public boolean IsVisible() {
-        return IsSupported();
-    }
 
     @Override
     public int GetValue()
@@ -72,31 +72,29 @@ public class BurstManualParam extends BaseManualParameter
     }
 
     @Override
-    public void SetValue(int valueToSet)
+    public void setValue(int valueToSet, boolean setToCamera)
     {
         currentInt = valueToSet;
 
-        if (parameters.get(cameraUiWrapper.getResString(R.string.num_snaps_per_shutter)) != null)
+        if (parameters.get(FreedApplication.getStringFromRessources(R.string.num_snaps_per_shutter)) != null)
         {
-            if (currentInt == 0)
-                parameters.set(cameraUiWrapper.getResString(R.string.num_snaps_per_shutter), 1+"");
-            else
-                parameters.set(cameraUiWrapper.getResString(R.string.num_snaps_per_shutter), stringvalues[currentInt]);
-            Log.d(TAG, cameraUiWrapper.getResString(R.string.num_snaps_per_shutter)+ stringvalues[currentInt]);
+            parameters.set(FreedApplication.getStringFromRessources(R.string.num_snaps_per_shutter),  String.valueOf((currentInt +1)));
+            parameters.set(FreedApplication.getStringFromRessources(R.string.snapshot_burst_num),  String.valueOf((currentInt +1)));
+            Log.d(TAG, FreedApplication.getStringFromRessources(R.string.num_snaps_per_shutter)+  String.valueOf(currentInt +1));
 
         }
-        if (parameters.get(cameraUiWrapper.getResString(R.string.snapshot_burst_num))!=null)
+        else if (parameters.get(FreedApplication.getStringFromRessources(R.string.snapshot_burst_num))!=null)
         {
-                parameters.set(cameraUiWrapper.getResString(R.string.snapshot_burst_num), stringvalues[currentInt]);
-            Log.d(TAG, cameraUiWrapper.getResString(R.string.snapshot_burst_num)+ stringvalues[currentInt]);
+                parameters.set(FreedApplication.getStringFromRessources(R.string.snapshot_burst_num), String.valueOf(currentInt +1));
+            Log.d(TAG, FreedApplication.getStringFromRessources(R.string.snapshot_burst_num)+ stringvalues[currentInt]);
         }
-        else if(parameters.get(cameraUiWrapper.getResString(R.string.burst_num)) != null)
+        else if(parameters.get(FreedApplication.getStringFromRessources(R.string.burst_num)) != null) // mtk
         {
             if (valueToSet == 0)
-                parameters.set(cameraUiWrapper.getResString(R.string.burst_num), String.valueOf(0));
+                parameters.set(FreedApplication.getStringFromRessources(R.string.burst_num), String.valueOf(0));
             else
-                parameters.set(cameraUiWrapper.getResString(R.string.burst_num), stringvalues[currentInt]);
-            Log.d(TAG, cameraUiWrapper.getResString(R.string.burst_num)+ stringvalues[currentInt]);
+                parameters.set(FreedApplication.getStringFromRessources(R.string.burst_num), stringvalues[currentInt]);
+            Log.d(TAG, FreedApplication.getStringFromRessources(R.string.burst_num)+ stringvalues[currentInt]);
         }
 
         ((ParametersHandler) cameraUiWrapper.getParameterHandler()).SetParametersToCamera(parameters);
@@ -108,24 +106,19 @@ public class BurstManualParam extends BaseManualParameter
         return stringvalues[currentInt];
     }
 
-    @Override
-    public ModuleChangedEvent GetModuleListner() {
-        return moduleListner;
-    }
 
-    private final ModuleChangedEvent moduleListner =new ModuleChangedEvent() {
-        @Override
-        public void onModuleChanged(String module)
+    @Subscribe
+    public void onModuleChanged(ModuleHasChangedEvent event)
+    {
+        String module = event.NewModuleName;
+        if ((module.equals(FreedApplication.getStringFromRessources(R.string.module_video)) || module.equals(FreedApplication.getStringFromRessources(R.string.module_hdr))) && settingMode.isSupported())
+            setViewState(ViewState.Hidden);
+        else if ((module.equals(FreedApplication.getStringFromRessources(R.string.module_picture))
+                || module.equals(FreedApplication.getStringFromRessources(R.string.module_interval))
+        )&& settingMode.isSupported())
         {
-            if ((module.equals(cameraUiWrapper.getResString(R.string.module_video)) || module.equals(cameraUiWrapper.getResString(R.string.module_hdr))) && isSupported)
-                fireIsSupportedChanged(false);
-            else if ((module.equals(cameraUiWrapper.getResString(R.string.module_picture))
-                    || module.equals(cameraUiWrapper.getResString(R.string.module_interval))
-                    )&& isSupported)
-            {
-                fireIsSupportedChanged(true);
-            }
+            setViewState(ViewState.Visible);
         }
-    };
+    }
 
 }

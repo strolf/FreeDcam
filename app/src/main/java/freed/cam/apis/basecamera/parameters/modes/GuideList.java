@@ -22,42 +22,39 @@ package freed.cam.apis.basecamera.parameters.modes;
 //defcomg was here
 
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 
 /**
  * Created by George on 1/19/2015.
  */
 public class GuideList extends AbstractParameter
 {
-
-    private AppSettingsManager appSettingsManager;
-    public GuideList(AppSettingsManager appSettingsManager) {
-        super();
-        this.appSettingsManager = appSettingsManager;
+    public GuideList() {
+        super(SettingKeys.GuideList);
     }
 
-
     @Override
-    public boolean IsSupported() {
-        return true;
+    public ViewState getViewState() {
+        return ViewState.Visible;
     }
 
     @Override
     public void SetValue(String valueToSet, boolean setToCam)
     {
-        appSettingsManager.guide.set(valueToSet);
+        SettingsManager.getGlobal(SettingKeys.GuideList).set(valueToSet);
         fireStringValueChanged(valueToSet);
     }
 
     @Override
     public String GetStringValue()
     {
-        return appSettingsManager.guide.get();
+        return SettingsManager.getGlobal(SettingKeys.GuideList).get();
     }
 
     @Override
     public String[] getStringValues() {
-        return appSettingsManager.guide.getValues();
+        return SettingsManager.getGlobal(SettingKeys.GuideList).getValues();
     }
 
 

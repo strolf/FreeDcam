@@ -19,27 +19,18 @@
 
 package freed;
 
-import android.content.Context;
 import android.net.Uri;
-import android.support.v4.provider.DocumentFile;
 
-import java.io.File;
-import java.util.List;
-
-import freed.cam.apis.basecamera.modules.I_WorkEvent;
-import freed.utils.AppSettingsManager;
-import freed.utils.LocationHandler;
-import freed.utils.PermissionHandler;
-import freed.utils.StorageFileHandler;
+import freed.file.FileListController;
+import freed.utils.LocationManager;
+import freed.utils.PermissionManager;
 import freed.viewer.helper.BitmapHelper;
-import freed.viewer.holder.FileHolder;
 
 /**
  * Created by troop on 22.03.2015.
  */
-public interface ActivityInterface extends I_WorkEvent
+public interface ActivityInterface
 {
-    void SwitchCameraAPI(String Api);
     void closeActivity();
     void ChooseSDCard(I_OnActivityResultCallback callback);
     interface I_OnActivityResultCallback
@@ -47,41 +38,19 @@ public interface ActivityInterface extends I_WorkEvent
         void onActivityResultCallback(Uri uri);
     }
 
-    PermissionHandler getPermissionHandler();
+    PermissionManager getPermissionManager();
 
     BitmapHelper getBitmapHelper();
 
-    Context getContext();
+    FileListController getFileListController();
 
-    AppSettingsManager getAppSettings();
-
-    StorageFileHandler getStorageHandler();
-
-    boolean DeleteFile(FileHolder file);
-    void DeleteFiles(List<FileHolder> files);
-
-    void AddFile(FileHolder file);
-
-    List<FileHolder> getFiles();
-
-    void LoadDCIMDirs();
-    void LoadFreeDcamDCIMDirsFiles();
-
-    void LoadFolder(FileHolder fileHolder, ActivityAbstract.FormatTypes types);
-
-    DocumentFile getFreeDcamDocumentFolder();
-    DocumentFile getExternalSdDocumentFile();
-
-    void DisablePagerTouch(boolean disable);
-
-
-    LocationHandler getLocationHandler();
+    LocationManager getLocationManager();
 
     int getOrientation();
 
     void SetNightOverlay();
 
-    void ScanFile(File file);
+    void runFeatureDetector();
 }
 
 

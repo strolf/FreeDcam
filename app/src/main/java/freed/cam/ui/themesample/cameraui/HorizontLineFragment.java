@@ -27,6 +27,7 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -34,12 +35,21 @@ import android.widget.ImageView;
 
 import com.troop.freedcam.R.id;
 import com.troop.freedcam.R.layout;
+import com.troop.freedcam.R.string;
+
+import org.greenrobot.eventbus.Subscribe;
 
 import freed.ActivityInterface;
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
+import freed.cam.apis.basecamera.parameters.AbstractParameter;
 import freed.cam.apis.basecamera.parameters.ParameterEvents;
+import freed.cam.events.EventBusHelper;
+import freed.cam.events.ValueChangedEvent;
 import freed.cam.ui.themesample.AbstractFragment;
-import freed.utils.AppSettingsManager;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
+import freed.utils.Log;
 
 /**
  * Created by Ar4eR on 15.01.16.
@@ -69,15 +79,24 @@ public class HorizontLineFragment extends AbstractFragment implements ParameterE
 
 
 
+    @Subscribe
+    public void onHorizontModeChanged(ValueChangedEvent<String> valueChangedEvent)
+    {
+        if (valueChangedEvent.key == SettingKeys.HorizontLvl)
+        {
+            onStringValueChanged(valueChangedEvent.newValue);
+        }
+    }
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
     {
         super.onCreateView(inflater,container,null);
         fragment_activityInterface = (ActivityInterface)getActivity();
         view = inflater.inflate(layout.cameraui_horizontline, container, false);
-        lineImage = (ImageView) view.findViewById(id.horizontlevelline);
-        upImage = (ImageView) view.findViewById(id.horizontlevelup);
-        downImage = (ImageView) view.findViewById(id.horizontleveldown);
+        lineImage = view.findViewById(id.horizontlevelline);
+        upImage = view.findViewById(id.horizontlevelup);
+        downImage = view.findViewById(id.horizontleveldown);
         upImage.setVisibility(View.GONE);
         downImage.setVisibility(View.GONE);
         HandlerThread sensorThread = new HandlerThread("Sensor thread", Thread.MAX_PRIORITY);
@@ -86,18 +105,14 @@ public class HorizontLineFragment extends AbstractFragment implements ParameterE
         sensorManager = (SensorManager) getActivity().getSystemService(Context.SENSOR_SERVICE);
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-        compassDrawer = (CompassDrawer)view.findViewById(id.view_compass);
+        compassDrawer = view.findViewById(id.view_compass);
+        compassDrawer.setVisibility(View.GONE);
 
         return view;
     }
 
     @Override
-    public void onIsSupportedChanged(boolean value) {
-
-    }
-
-    @Override
-    public void onIsSetSupportedChanged(boolean value) {
+    public void onViewStateChanged(AbstractParameter.ViewState value) {
 
     }
 
@@ -113,10 +128,11 @@ public class HorizontLineFragment extends AbstractFragment implements ParameterE
 
     @Override
     public void onStringValueChanged(String value) {
-        if(fragment_activityInterface.getAppSettings().getApiString(AppSettingsManager.SETTING_HORIZONT).equals("On"))
+        if(SettingsManager.getGlobal(SettingKeys.HorizontLvl).get() != null && SettingsManager.getGlobal(SettingKeys.HorizontLvl).get().equals(FreedApplication.getStringFromRessources(string.on)))
         {
             startSensorListing();
             view.setVisibility(View.VISIBLE);
+            view.bringToFront();
         }
         else
         {
@@ -128,11 +144,13 @@ public class HorizontLineFragment extends AbstractFragment implements ParameterE
     public void setCameraUiWrapper(CameraWrapperInterface cameraUiWrapper)
     {
         this.cameraUiWrapper = cameraUiWrapper;
-        cameraUiWrapper.getParameterHandler().Horizont.addEventListner(this);
+        //cameraUiWrapper.getParameterHandler().get(SettingKeys.HorizontLvl).addEventListner(this);
+        onStringValueChanged(cameraUiWrapper.getParameterHandler().get(SettingKeys.HorizontLvl).GetStringValue());
     }
+
     private void startSensorListing()
     {
-        if (fragment_activityInterface.getAppSettings().getApiString(AppSettingsManager.SETTING_HORIZONT).equals("On")) {
+        if (SettingsManager.getGlobal(SettingKeys.HorizontLvl).get().equals(FreedApplication.getStringFromRessources(string.on))) {
             sensorManager.registerListener(msl, accelerometer, SensorManager.SENSOR_STATUS_ACCURACY_LOW, sensorHandler);
             sensorManager.registerListener(msl, magnetometer, SensorManager.SENSOR_STATUS_ACCURACY_LOW, sensorHandler);
         }
@@ -148,14 +166,24 @@ public class HorizontLineFragment extends AbstractFragment implements ParameterE
     public void onPause(){
         super.onPause();
         stopSensorListing();
+        EventBusHelper.unregister(this);
     }
     @Override
     public void onResume(){
         super.onResume();
-        if (fragment_activityInterface.getAppSettings().getApiString(AppSettingsManager.SETTING_HORIZONT).equals("Off") || fragment_activityInterface.getAppSettings().getApiString(AppSettingsManager.SETTING_HORIZONT).equals(""))
-            view.setVisibility(View.GONE);
-        else
-            startSensorListing();
+        EventBusHelper.register(this);
+        try {
+            if (SettingsManager.getGlobal(SettingKeys.HorizontLvl).get() != null && SettingsManager.getGlobal(SettingKeys.HorizontLvl).get().equals(FreedApplication.getStringFromRessources(string.off))
+                    || TextUtils.isEmpty(SettingsManager.get(SettingKeys.HorizontLvl).get()))
+                view.setVisibility(View.GONE);
+            else
+                startSensorListing();
+        }
+        catch (NullPointerException ex)
+        {
+            Log.WriteEx(ex);
+        }
+
     }
 
     private class MySensorListener implements SensorEventListener {
@@ -199,25 +227,22 @@ public class HorizontLineFragment extends AbstractFragment implements ParameterE
 
     private void updateUi(final float pitch,final  float roll,final float yaw)
     {
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                    compassDrawer.SetPosition(yaw);
-                    lineImage.setRotation(roll);
-                if (pitchdegree > -89) {
-                    if(upImage.getVisibility() != View.VISIBLE)
-                        upImage.setVisibility(View.VISIBLE);
-                    downImage.setVisibility(View.GONE);
-                }
-                else if (pitchdegree < -91) {
-                    upImage.setVisibility(View.GONE);
-                    if(downImage.getVisibility() != View.VISIBLE)
-                        downImage.setVisibility(View.VISIBLE);
-                }
-                else if (pitchdegree >= -91 && pitchdegree <= -89) {
-                    upImage.setVisibility(View.GONE);
-                    downImage.setVisibility(View.GONE);
-                }
+        handler.post(() -> {
+            //compassDrawer.SetPosition(yaw);
+                lineImage.setRotation(roll);
+            if (pitchdegree > -89) {
+                if(upImage.getVisibility() != View.VISIBLE)
+                    upImage.setVisibility(View.VISIBLE);
+                downImage.setVisibility(View.GONE);
+            }
+            else if (pitchdegree < -91) {
+                upImage.setVisibility(View.GONE);
+                if(downImage.getVisibility() != View.VISIBLE)
+                    downImage.setVisibility(View.VISIBLE);
+            }
+            else if (pitchdegree >= -91 && pitchdegree <= -89) {
+                upImage.setVisibility(View.GONE);
+                downImage.setVisibility(View.GONE);
             }
         });
     }

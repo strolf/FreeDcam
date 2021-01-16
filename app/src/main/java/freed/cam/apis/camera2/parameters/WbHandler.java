@@ -26,10 +26,13 @@ import android.os.Build.VERSION_CODES;
 
 import com.troop.freedcam.R;
 
+import freed.FreedApplication;
 import freed.cam.apis.basecamera.CameraWrapperInterface;
 import freed.cam.apis.basecamera.parameters.AbstractParameter;
-import freed.cam.apis.camera2.CameraHolderApi2;
+import freed.cam.apis.camera2.Camera2Fragment;
 import freed.cam.apis.camera2.parameters.modes.BaseModeApi2;
+import freed.settings.SettingKeys;
+import freed.settings.SettingsManager;
 import freed.utils.Log;
 import freed.utils.StringIntArray;
 import freed.utils.StringUtils;
@@ -42,18 +45,18 @@ public class WbHandler
     private final CameraWrapperInterface cameraUiWrapper;
     public WhiteBalanceApi2 whiteBalanceApi2;
     private ColorCorrectionModeApi2 colorCorrectionMode;
-    public final ManualWbCtApi2 manualWbCt;
+    public ManualWbCtApi2 manualWbCt;
 
     public WbHandler(CameraWrapperInterface cameraUiWrapper)
     {
         this.cameraUiWrapper= cameraUiWrapper;
 
-        if (cameraUiWrapper.getAppSettingsManager().colorCorrectionMode.isSupported())
+        if (SettingsManager.get(SettingKeys.COLOR_CORRECTION_MODE).isSupported())
             colorCorrectionMode = new ColorCorrectionModeApi2();
-        if (cameraUiWrapper.getAppSettingsManager().whiteBalanceMode.isSupported())
+        if (SettingsManager.get(SettingKeys.WhiteBalanceMode).isSupported())
             whiteBalanceApi2 = new WhiteBalanceApi2();
-
-        manualWbCt = new ManualWbCtApi2(cameraUiWrapper);
+        if (!SettingsManager.get(SettingKeys.useHuaweiWhiteBalance).get())
+            manualWbCt = new ManualWbCtApi2(cameraUiWrapper);
     }
 
 
@@ -63,21 +66,24 @@ public class WbHandler
      */
     private void setWbMode(String wbMode)
     {
-        String activeWbMode = wbMode;
-        if (!wbMode.equals(cameraUiWrapper.getResString(R.string.off)))
+        if (!wbMode.equals(FreedApplication.getStringFromRessources(R.string.off)))
         {
             //if ON or any other preset set the colorcorrection to fast to let is use hal wb
-            colorCorrectionMode.SetValue(cameraUiWrapper.getResString(R.string.fast),true);
+            colorCorrectionMode.SetValue(FreedApplication.getStringFromRessources(R.string.fast),true);
             //hide manual wbct manualitem in ui
-            manualWbCt.fireIsSupportedChanged(false);
+            if (manualWbCt != null)
+                manualWbCt.setViewState(AbstractParameter.ViewState.Hidden);
         }
         else //if OFF
         {
             //set colorcorrection to TRANSFORMATRIX to have full control
-            colorCorrectionMode.SetValue(cameraUiWrapper.getResString(R.string.colorcorrection_transform_matrix),true);
+            colorCorrectionMode.SetValue(FreedApplication.getStringFromRessources(R.string.colorcorrection_transform_matrix),true);
             //show wbct manual item in ui
-            manualWbCt.fireStringValueChanged(manualWbCt.GetStringValue());
-            manualWbCt.fireIsSupportedChanged(true);
+            if (manualWbCt != null) {
+                manualWbCt.fireStringValueChanged(manualWbCt.GetStringValue());
+                manualWbCt.setViewState(AbstractParameter.ViewState.Visible);
+            }
+
         }
 
     }
@@ -95,11 +101,11 @@ public class WbHandler
 
         public WhiteBalanceApi2()
         {
-            super(WbHandler.this.cameraUiWrapper);
-            isSupported = cameraUiWrapper.getAppSettingsManager().whiteBalanceMode.isSupported();
-            settingMode = cameraUiWrapper.getAppSettingsManager().whiteBalanceMode;
+            super(WbHandler.this.cameraUiWrapper,SettingKeys.WhiteBalanceMode);
+            isSupported = SettingsManager.get(SettingKeys.WhiteBalanceMode).isSupported();
+            settingMode = SettingsManager.get(SettingKeys.WhiteBalanceMode);
             parameterKey = CaptureRequest.CONTROL_AWB_MODE;
-            parameterValues = StringUtils.StringArrayToIntHashmap(cameraUiWrapper.getAppSettingsManager().whiteBalanceMode.getValues());
+            parameterValues = StringUtils.StringArrayToIntHashmap(SettingsManager.get(SettingKeys.WhiteBalanceMode).getValues());
             if (parameterValues == null)
             {
                 isSupported = false;
@@ -107,19 +113,14 @@ public class WbHandler
             }
             stringvalues = new String[parameterValues.size()];
             parameterValues.keySet().toArray(stringvalues);
-            if (colorCorrectionMode != null)
+            if (colorCorrectionMode != null && colorCorrectionMode.GetStringValue() != null)
                 lastcctmode = colorCorrectionMode.GetStringValue();
         }
 
         @Override
-        public boolean IsSupported()
+        public void setValue(String valueToSet, boolean setToCamera)
         {
-            return isSupported;
-        }
-        @Override
-        public void SetValue(String valueToSet, boolean setToCamera)
-        {
-            super.SetValue(valueToSet,setToCamera);
+            super.setValue(valueToSet,setToCamera);
             setWbMode(valueToSet);
         }
     }
@@ -138,8 +139,8 @@ public class WbHandler
         private final String TAG = ManualWbCtApi2.class.getSimpleName();
 
         public ManualWbCtApi2(CameraWrapperInterface cameraUiWrapper) {
-            super(cameraUiWrapper);
-            lookupvalues = new StringIntArray(cameraUiWrapper.getAppSettingsManager().getResources().getStringArray(R.array.wbct_lookup));
+            super(cameraUiWrapper,SettingKeys.M_Whitebalance);
+            lookupvalues = new StringIntArray(FreedApplication.getContext().getResources().getStringArray(R.array.wbct_lookup));
             currentInt = 0;
         }
 
@@ -165,10 +166,20 @@ public class WbHandler
         //rgb(255,108, 0)   1500k
         //rgb 255,255,255   6000k
         //rgb(181,205, 255) 15000k
+        private final double MINCAP = 1.0;
+
+        /*
+        * <p>The gains in the result metadata are the gains actually
+     * applied by the camera device to the current frame.</p>
+     * <p>The valid range of gains varies on different devices, but gains
+     * between [1.0, 3.0] are guaranteed not to be clipped. Even if a given
+     * device allows gains below 1.0, this is usually not recommended because
+     * this can create color artifacts.</p>
+         */
         @Override
-        public void SetValue(int valueToSet)
+        public void setValue(int valueToSet, boolean setToCamera)
         {
-            super.SetValue(valueToSet);
+            super.setValue(valueToSet, setToCamera);
             if (valueToSet == 0) // = auto
                 return;
             currentInt =valueToSet;
@@ -181,23 +192,18 @@ public class WbHandler
             float rf,gf,bf = 0;
 
             rf = (float) getRGBToDouble(rgb[0]);
-            gf = (float) getRGBToDouble(rgb[1])/2;//we have two green channels
+            gf =(float) getRGBToDouble(rgb[1])/2;//we have two green channels
             bf = (float) getRGBToDouble(rgb[2]);
-            rf = rf/gf;
-            bf = bf/gf;
-            gf = 1;
+            if (gf < MINCAP)
+                gf= (float)MINCAP;
 
             Log.d(TAG, "r:" +rgb[0] +" g:"+rgb[1] +" b:"+rgb[2]);
             Log.d(TAG, "ColorTemp=" + valueToSet + " WBCT = r:" +rf +" g:"+gf +" b:"+bf);
             wbChannelVector =  new RggbChannelVector(rf,gf,gf,bf);
-            ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler.SetParameterRepeating(CaptureRequest.COLOR_CORRECTION_GAINS, wbChannelVector);
+            ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameterRepeating(CaptureRequest.COLOR_CORRECTION_GAINS, wbChannelVector,setToCamera);
 
         }
 
-        @Override
-        public void SetValue(String valueToSet, boolean setToCamera) {
-
-        }
 
         private int checkminmax(int val)
         {
@@ -210,31 +216,24 @@ public class WbHandler
 
         private double getRGBToDouble(int color)
         {
-            double t = color;
-            t = t * 3 *2;
-            t = t / 255;
-            t = t / 3;
-            t += 1;
-
-            return t;
+            double s = ((2.0/255.0) * color) +1;
+            if (s < MINCAP)
+                return MINCAP;
+            return s;
         }
 
         @Override
-        public boolean IsSetSupported() {
-            return true;
-        }
-
-        @Override
-        public boolean IsVisible() {
-            return isSupported;
-        }
-
-        @Override
-        public boolean IsSupported() {
-            if (cameraUiWrapper == null || cameraUiWrapper.getParameterHandler() == null || cameraUiWrapper.getParameterHandler().WhiteBalanceMode == null)
-                return false;
-            isSupported = cameraUiWrapper.getParameterHandler().WhiteBalanceMode.GetStringValue().equals("OFF");
-            return isSupported;
+        public ViewState getViewState() {
+            try {
+                if (cameraUiWrapper == null || cameraUiWrapper.getParameterHandler() == null || cameraUiWrapper.getParameterHandler().get(SettingKeys.WhiteBalanceMode) == null)
+                    return ViewState.Hidden;
+                else if (cameraUiWrapper.getParameterHandler().get(SettingKeys.WhiteBalanceMode).GetStringValue().equals(FreedApplication.getStringFromRessources(R.string.off)))
+                    return ViewState.Visible;
+            }
+            catch (NullPointerException ex) {
+                Log.WriteEx(ex);
+            }
+            return ViewState.Hidden;
         }
 
         private int getCctFromRGB(int R, int G, int B)
@@ -251,21 +250,20 @@ public class WbHandler
     public class ColorCorrectionModeApi2 extends BaseModeApi2 {
 
         public ColorCorrectionModeApi2() {
-            super(WbHandler.this.cameraUiWrapper);
+            super(WbHandler.this.cameraUiWrapper, SettingKeys.COLOR_CORRECTION_MODE);
             parameterKey = CaptureRequest.COLOR_CORRECTION_MODE;
-            settingMode = cameraUiWrapper.getAppSettingsManager().colorCorrectionMode;
-            parameterValues = StringUtils.StringArrayToIntHashmap(cameraUiWrapper.getAppSettingsManager().colorCorrectionMode.getValues());
+            settingMode = SettingsManager.get(SettingKeys.COLOR_CORRECTION_MODE);
+            parameterValues = StringUtils.StringArrayToIntHashmap(settingMode.getValues());
+            if (SettingsManager.get(SettingKeys.COLOR_CORRECTION_MODE).isSupported())
+                setViewState(ViewState.Visible);
         }
 
-        @Override
-        public boolean IsSupported() {
-            return cameraUiWrapper.getAppSettingsManager().colorCorrectionMode.isSupported();
-        }
 
         @Override
-        public void SetValue(String valueToSet, boolean setToCamera)
+        public void setValue(String valueToSet, boolean setToCamera)
         {
-            ((CameraHolderApi2) cameraUiWrapper.getCameraHolder()).captureSessionHandler.SetParameterRepeating(CaptureRequest.COLOR_CORRECTION_MODE, parameterValues.get(valueToSet));
+            ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameterRepeating(CaptureRequest.COLOR_CORRECTION_MODE, parameterValues.get(valueToSet),setToCamera);
+            ((Camera2Fragment) cameraUiWrapper).captureSessionHandler.SetParameterRepeating(CaptureRequest.COLOR_CORRECTION_GAINS, null,setToCamera);
             fireStringValueChanged(valueToSet);
         }
 
